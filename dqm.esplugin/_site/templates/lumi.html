@@ -1,0 +1,91 @@
+<div ng-controller="LumiCtrl">
+
+  <div ng-controller="LumiRunCtrl">
+    <div ng-show="runs_loaded">
+      <div ng-show="runs.length"  class="runs alert-success alert">
+        <span ng-if="! LumiCtrl.show_all">
+          <a ng-repeat="key in runs | limitTo:8" class="label-run label label-info" ng-click="LumiCtrl.set_run(key)"> {{ key }} </a>
+          <a class="label-run label label-info" ng-click="LumiCtrl.show_all = true"> ... (click for more) </a>
+        </span>
+        <span ng-if="LumiCtrl.show_all">
+          <a ng-repeat="key in runs" class="label-run label label-info" ng-click="LumiCtrl.set_run(key)"> {{ key }} </a>
+        </span>
+      </div>
+
+      <div ng-hide="runs.length" class="runs alert-warning alert">
+        <strong>Warning!</strong> no runs!
+      </div>
+    </div>
+  </div>
+
+  <div ng-show="LumiCtrl.run">
+
+    <div class="page-header">
+      <h2>Run <span class="label label-success">{{ LumiCtrl.run }}</span></h2>
+    </div>
+
+    <div class="scheme">
+      <span class="label label-warning">stopped</span>
+      <span class="label label-danger">crashed</span>
+    </div>
+
+    {{ LumiCtrl.tags }}
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Delay</th>
+          <th>Exit code</th>
+          <th>Hostname / Pid </th>
+          <th>Tag</th>
+          <th class="align-right">Current lumi</th>
+          <th class="align-right">Seen lumi</th>
+          <th class="align-right">RSS</th>
+          <th class="align-right">Total Ev.</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody ng-repeat="hit in LumiCtrl.hits">
+        <tr ng-class="hit.$ec_class">
+          <td class="test">
+            {{ hit.fields._timestamp | date:'yyyy-MM-dd HH:mm:ss Z' }}
+          </td>
+          <td><dqm-timediff-field time="hit.fields._timestamp" diff="ClusterCtrl.cluster_timestamp" /></td>
+          <td class="align-right">
+            {{ hit._source.exit_code | dqm_statuscode }}
+          </td>
+          <td> {{ hit._source.hostname }} / {{ hit._source.pid }} </td>
+          <td> {{ hit._source.tag }} </td>
+          <td class="align-right">
+            {{ hit._source.cmssw_lumi }}
+            <button type="button" ng-hide="_tr_log" ng-click="_tr_log = reverse_log(LumiCtrl.logs[hit._id])" class="btn btn-default btn-xs">log</button>
+            <button type="button" ng-show="_tr_log" ng-click="_tr_log = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+          </td>
+          <td class="align-right">
+            {{ hit.$lastLumi }}
+            <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit.$sortedLumi)" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
+            <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+
+          </td>
+          <td class="align-right">
+            {{ hit._source.extra.ps_info.VmRSS | dqm_megabytes }}
+            <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit._source.extra.ps_info)" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
+            <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+          </td>
+          <td class="align-right"> {{ hit._source.events_total }} </td>
+          <td>
+            <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit)" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-comment"></span></button>
+            <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-sm active"><span class="glyphicon glyphicon-remove"></span></button>
+          </td>
+        </tr>
+        <tr ng-show="_tr_source"><td colspan="100">
+          <pre class="prettyprint" lang="javascript" prettify-source="{{ _tr_source }}"></pre>
+        </td></tr>
+        <tr ng-show="_tr_log"><td colspan="100">
+          <pre class="prettyprint" lang="javascript" ng-bind="_tr_log"></pre>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

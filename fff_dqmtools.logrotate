@@ -1,0 +1,21 @@
+/var/log/fff_monitoring.log {
+        copytruncate
+        hourly
+        missingok
+        size 64M
+        rotate 0
+}
+/var/log/fff_deleter.log {
+        copytruncate
+        hourly
+        missingok
+        size 64M
+        rotate 4
+}
+/var/log/fff_deleter_minidaq.log {
+        copytruncate
+        hourly
+        missingok
+        size 64M
+        rotate 4
+}

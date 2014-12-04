@@ -1,0 +1,19 @@
+body { padding-top: 70px; padding-bottom: 30px; }
+td.align-right, th.align-right { text-align: right; }
+
+div.alert.runs { overflow: hidden; padding: 5px; }
+.label-run { margin: 5px; float: left; }
+
+.theme-showcase > p > .btn {
+  margin: 5px 0;
+}
+
+div.scheme { float: right; margin-bottom: 15px; }
+
+td.trackLess { background-color: #FCF8E3; }
+td.trackMore { background-color: #DFF0D8; }
+
+td.timestamp { white-space: nowrap; }
+td.actions { white-space: nowrap; }
+
+td pre.prettyprint { white-space: pre-wrap; }
