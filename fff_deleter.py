@@ -13,7 +13,7 @@ from collections import OrderedDict
 
 log = logging.getLogger("root")
 
-re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted)$")
+re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
 def parse_file_name(rl):
     m = re_files.match(rl)
     if not m:
