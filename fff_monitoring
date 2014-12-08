@@ -41,7 +41,7 @@ restart() {
 
 reindex() {
 	stop
-	$DAEMON_BIN reindex
+	$DAEMON_BIN --reindex
 	start
 }
 

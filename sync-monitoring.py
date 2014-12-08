@@ -8,9 +8,11 @@ hosts = [
     "fu-c2f13-39-03",
     "fu-c2f13-39-04",
 
-    # playback
+    # playback / event display
+    "bu-c2f13-29-01",
     "fu-c2f13-41-03",
     "fu-c2f13-41-01",
+
 ]
 
 install_dir = os.path.join(os.path.dirname(__file__), "./")

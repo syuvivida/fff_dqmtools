@@ -311,14 +311,14 @@ if __name__ == "__main__":
         sys.stderr.flush()
         sys.exit(1)
 
-    # try to take the lock or quit
-    sock = mod.socket_lock(opt["app_tag"])
-    if sock is None:
-        sys.stderr.write("Already running, tag was %s, exitting.\n" % opt["app_tag"])
-        sys.stderr.flush()
-        sys.exit(1)
-
     if not opt["do_foreground"]:
+        # try to take the lock or quit
+        sock = mod.socket_lock(opt["app_tag"])
+        if sock is None:
+            sys.stderr.write("Already running, tag was %s, exitting.\n" % opt["app_tag"])
+            sys.stderr.flush()
+            sys.exit(1)
+
         mod.daemon_detach(
             "/var/log/%s.log" % opt["app_tag"],
             "/var/run/%s.pid" % opt["app_tag"])

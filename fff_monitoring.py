@@ -26,6 +26,11 @@ def prepare_imports():
     import watcher
     import pyelasticsearch.client as es_client
 
+def close_on_exec(fd):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+    flags |= fcntl.FD_CLOEXEC
+    fcntl.fcntl(fd, fcntl.F_SETFD, flags)
+
 class FileMonitor(object):
     def __init__(self, top_path, log_capture=None, rescan_timeout=30):
         self.path = top_path
@@ -83,15 +88,16 @@ class FileMonitor(object):
                     'type' : {'type' : 'string' },
                     'pid' : { 'type' : 'integer' },
                     'hostname' : { 'type' : 'string' },
-                    'sequence' : { 'type' : 'integer', "index" : "not_analyzed" },
+                    'sequence' : { 'type' : 'integer', 'index' : 'no' },
                     'run' : { 'type' : 'integer' },
                     'lumi' : { 'type' : 'integer' },
 
-                    'extra' : {     "type": "object", "index" : "not_analyzed", "enabled": False },
-                    'ps_info' : {   "type": "object", "index" : "not_analyzed", "enabled": False },
-                    'lumiSeen' : {  "type": "object", "index" : "not_analyzed", "enabled": False },
+                    'extra' : { 'type': 'object', 'index' : 'no', 'enabled': False },
 
-                    'stderr' : {'type' : 'string', "index" : "no", "enabled": False },
+                    # should not be used, they are now under 'extra'
+                    'ps_info' : { 'type': 'object', 'index' : 'no', 'enabled': False },
+                    'lumiSeen' : {  'type': 'object', 'index' : 'no', 'enabled': False },
+                    'stderr' : {'type' : 'string', 'index' : 'no', 'enabled': False },
 
                 },
                 '_timestamp' : { 'enabled' : True, 'store' : True, },
@@ -102,9 +108,9 @@ class FileMonitor(object):
                     'type' : {'type' : 'string' },
                     'pid' : { 'type' : 'integer' },
                     'hostname' : { 'type' : 'string' },
-                    'sequence' : { 'type' : 'integer', "index" : "not_analyzed" },
+                    'sequence' : { 'type' : 'integer', 'index' : 'no' },
 
-                    'extra' : { "type": "object", "index" : "not_analyzed", "enabled": False },
+                    'extra' : { 'type': 'object', 'index' : 'no', 'enabled': False },
                 },
                 '_timestamp' : { 'enabled' : True, 'store' : True, },
                 '_ttl' : { 'enabled' : True, 'default' : '15d' }
@@ -114,9 +120,9 @@ class FileMonitor(object):
                     'type' : {'type' : 'string' },
                     'pid' : { 'type' : 'integer' },
                     'hostname' : { 'type' : 'string' },
-                    'sequence' : { 'type' : 'integer', "index" : "not_analyzed" },
+                    'sequence' : { 'type' : 'integer', 'index' : 'no' },
 
-                    'extra' : { "type": "object", "index" : "not_analyzed", "enabled": False },
+                    'extra' : { 'type': 'object', 'index' : 'no', 'enabled': False },
                 },
                 '_timestamp' : { 'enabled' : True, 'store' : True, },
                 '_ttl' : { 'enabled' : True, 'default' : '15d' }
@@ -148,6 +154,7 @@ class FileMonitor(object):
             return True
         except:
             log.warning("Failure to upload the document: %s", fp, exc_info=True)
+            #raise Exception("Please restart.")
             return False
 
     def process_file(self, fp):
@@ -212,6 +219,11 @@ class FileMonitor(object):
     def wait_n_run(self):
         mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
         w = watcher.Watcher()
+
+        # by default inotify is openned without FD_CLOSEXEC
+        # We use execve to restart and can run out of inotify instances.
+        close_on_exec(w.fileno())
+
         w.add(self.path, mask)
 
         poll = select.poll()
@@ -259,9 +271,6 @@ def socket_lock(pname):
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     try:
         sock.bind('\0' + pname)
-        fd = sock.fileno()
-        old_flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-        fcntl.fcntl(fd, fcntl.F_SETFD, old_flags | fcntl.FD_CLOEXEC)
         return sock
     except socket.error:
         return None
