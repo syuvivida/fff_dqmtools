@@ -1,8 +1,8 @@
 var dqmApp = angular.module('dqmApp', ['ngRoute']);
 
 dqmApp.controller('NavigationController', [
-    '$scope', '$location', '$route', '$http', 'ElasticQuery',
-    function($scope, $location, $route, $http, ElasticQuery) {
+    '$scope', '$location', '$route', '$http', 'DynamicQuery',
+    function($scope, $location, $route, $http, DynamicQuery) {
 
     $scope.$route = $route;
 
@@ -11,7 +11,7 @@ dqmApp.controller('NavigationController', [
     };
 
     $scope.NavigationController = {};
-    $scope.ElasticQuery = ElasticQuery;
+    $scope.DynamicQuery = DynamicQuery;
     $scope.dqm_number = 2;
 
     $scope.toJson = function (v) {
@@ -33,11 +33,11 @@ dqmApp.controller('NavigationController', [
     });
 
     $scope.$watch('NavigationController.search_interval', function (x) {
-        ElasticQuery.start(x);
+        DynamicQuery.start(x);
     });
 }]);
 
-dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'ElasticQuery', function($scope, $http, ElasticQuery) {
+dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'DynamicQuery', function($scope, $http, DynamicQuery) {
     var ctrl = {};
     $scope.ClusterCtrl = ctrl;
 
@@ -60,7 +60,7 @@ dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'ElasticQuery', function($s
         ]
     };
 
-    ElasticQuery.repeated_search_dct("cluster-state", {
+    DynamicQuery.repeated_search_dct("cluster-state", {
         url: "/_cluster/stats/",
         method: "get",
         _es_callback: function (body) {
@@ -72,16 +72,16 @@ dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'ElasticQuery', function($s
         }
     });
 
-    ElasticQuery.repeated_search("dqm-stats", "dqm-stats/_search/", query, function (body) {
+    DynamicQuery.repeated_search("dqm-stats", "dqm-stats/_search/", query, function (body) {
         ctrl.hits = body.hits.hits;
     });
 
     $scope.$on("$destroy", function handler() {
-        ElasticQuery.delete_search("dqm-stats");
+        DynamicQuery.delete_search("dqm-stats");
     });
 }]);
 
-dqmApp.controller('StatsController', ['$scope', 'ElasticQuery', function($scope, ElasticQuery) {
+dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
     var ctrl = {};
     var query = {
         "query": {
@@ -95,7 +95,7 @@ dqmApp.controller('StatsController', ['$scope', 'ElasticQuery', function($scope,
         ]
     };
 
-    ElasticQuery.repeated_search("stats", "dqm-diskspace,dqm-stats/_search/", query, function (body) {
+    DynamicQuery.repeated_search("stats", "dqm-diskspace,dqm-stats/_search/", query, function (body) {
         $scope.hits = body.hits.hits;
         try {
             _.each($scope.hits, function (hit) {
@@ -112,13 +112,13 @@ dqmApp.controller('StatsController', ['$scope', 'ElasticQuery', function($scope,
     });
 
     $scope.$on("$destroy", function handler() {
-        ElasticQuery.delete_search("stats");
+        DynamicQuery.delete_search("stats");
     });
 
     $scope.StatsCtrl = ctrl;
 }]);
 
-dqmApp.controller('LumiRunCtrl', ['$scope', 'ElasticQuery', function($scope, ElasticQuery) {
+dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
     var run_query = {
         "query": {
             "match_all": {}
@@ -128,7 +128,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', 'ElasticQuery', function($scope, Ela
         },
     };
 
-    ElasticQuery.repeated_search("lumi-run", "dqm-source-state/_search/", run_query, function (body) {
+    DynamicQuery.repeated_search("lumi-run", "dqm-source-state/_search/", run_query, function (body) {
         var runs = _.map(body.aggregations.runs.buckets, function (v) {
             return parseInt(v.key);
         });
@@ -142,11 +142,11 @@ dqmApp.controller('LumiRunCtrl', ['$scope', 'ElasticQuery', function($scope, Ela
     });
 
     $scope.$on("$destroy", function () {
-        ElasticQuery.delete_search("lumi-run");
+        DynamicQuery.delete_search("lumi-run");
     });
 }]);
 
-dqmApp.controller('LumiCtrl', ['$scope', 'ElasticQuery', '$location', '$routeParams', function($scope, ElasticQuery, $location, $routeParams) {
+dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routeParams', function($scope, DynamicQuery, $location, $routeParams) {
     var lumi = {
         run: $routeParams.run
     };
@@ -180,7 +180,7 @@ dqmApp.controller('LumiCtrl', ['$scope', 'ElasticQuery', '$location', '$routePar
             ]
         };
 
-        ElasticQuery.repeated_search("lumi-data", "dqm-source-state/_search/", lumi_query, function (body) {
+        DynamicQuery.repeated_search("lumi-data", "dqm-source-state/_search/", lumi_query, function (body) {
             lumi.hits = body.hits.hits;
             lumi.logs = {};
 
@@ -227,14 +227,14 @@ dqmApp.controller('LumiCtrl', ['$scope', 'ElasticQuery', '$location', '$routePar
     });
 
     $scope.$on("$destroy", function () {
-        ElasticQuery.delete_search("lumi-data");
+        DynamicQuery.delete_search("lumi-data");
     });
 
     $scope.LumiCtrl = lumi;
 }]);
 
 
-dqmApp.factory('ElasticQuery', ['$http', '$window', function ($http, $window) {
+dqmApp.factory('DynamicQuery', ['$http', '$window', function ($http, $window) {
     var factory = {
         base: "/dqm_online_monitoring/",
         _searches: {},
