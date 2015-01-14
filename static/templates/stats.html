@@ -7,6 +7,7 @@
     <thead>
       <tr>
         <th>Timestamp</th>
+        <th>Delay</th>
         <th>Type</th>
         <th>Hostname</th>
         <th>Pid</th>
@@ -23,28 +24,29 @@
     <tbody ng-repeat="hit in hits">
       <tr>
         <td class="timestamp">
-          {{ hit.fields._timestamp | date:'yyyy-MM-dd HH:mm:ss Z' }}
-          <dqm-timediff-field time="hit.fields._timestamp" diff="ClusterCtrl.cluster_timestamp" />
+          {{ hit._meta.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}
+        </td>
+        <td><dqm-timediff-field time="hit._meta.timestamp" diff="ClusterCtrl.info_data.timestamp" /></td>
         </td>
         <td>
-          {{ hit._type }}
-          <span ng-show="hit._source.tag == 'fff_deleter_minidaq'"> (minidaq) </span>
+          {{ hit.type }}
+          <span ng-show="hit.tag == 'fff_deleter_minidaq'"> (minidaq) </span>
         </td>
-        <td> {{ hit._source.hostname }} </td>
-        <td> {{ hit._source.pid }} </td>
+        <td> {{ hit.hostname }} </td>
+        <td> {{ hit.pid }} </td>
 
-        <td ng-show="hit._type == 'dqm-diskspace'"> {{ hit._source.disk_used | dqm_megabytes }} ({{ hit._source._disk_pc | number:2 }}%)</td>
-        <td ng-show="hit._type == 'dqm-diskspace'"> {{ hit._source.disk_free | dqm_megabytes }}</td>
+        <td ng-show="hit._type == 'dqm-diskspace'"> {{ hit.disk_used | dqm_megabytes }} ({{ hit.$disk_pc | number:2 }}%)</td>
+        <td ng-show="hit._type == 'dqm-diskspace'"> {{ hit.disk_free | dqm_megabytes }}</td>
 
         <td ng-hide="hit._type == 'dqm-diskspace'"> -- </td>
         <td ng-hide="hit._type == 'dqm-diskspace'"> -- </td>
 
-        <td> {{ hit._source.memory_used | dqm_megabytes }} </td>
-        <td> {{ hit._source.memory_free | dqm_megabytes }} </td>
+        <td> {{ hit.memory_used | dqm_megabytes }} </td>
+        <td> {{ hit.memory_free | dqm_megabytes }} </td>
         <td class="actions">
-          <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit._source.extra.stdlog)" class="btn btn-default btn-sm"><span>log</span></button>
-          <span ng-show="hit._type == 'dqm-diskspace'"><button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(debug_object(hit._source.extra.files_seen))" class="btn btn-default btn-sm"><span>files</span></button></span>
-          <span ng-show="hit._type == 'dqm-stats'"><button type="button" ng-hide="_tr_source" ng-click="_tr_source = hit._source.extra.df" class="btn btn-default btn-sm"><span>df</span></button></span>
+          <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit.extra.stdlog)" class="btn btn-default btn-sm"><span>log</span></button>
+          <span ng-show="hit._type == 'dqm-diskspace'"><button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(debug_object(hit.extra.files_seen))" class="btn btn-default btn-sm"><span>files</span></button></span>
+          <span ng-show="hit._type == 'dqm-stats'"><button type="button" ng-hide="_tr_source" ng-click="_tr_source = hit.extra.df" class="btn btn-default btn-sm"><span>df</span></button></span>
           <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit)" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-comment"></span></button>
           <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-sm active"><span class="glyphicon glyphicon-remove"></span></button>
         </td>

@@ -45,8 +45,8 @@
                 <li>
                   <a>
                     <span class="label label-info">
-                      {{ ClusterCtrl.hostname }} / {{ ClusterCtrl.cluster_name }}
-                      / {{ ClusterCtrl.cluster_timestamp | date:'yyyy-MM-dd HH:mm:ss Z' }}
+                      {{ ClusterCtrl.info_data.hostname }}
+                      / {{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}
                     </span>
                   </a>
                 </li>

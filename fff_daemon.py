@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 import socket
+import time
 import select, stat, signal, errno, fcntl
 from StringIO import StringIO
 
@@ -47,15 +48,27 @@ def daemon_detach(logfile, pidfile):
         f.write("%d\n" % os.getpid())
         f.close()
 
+def clear_fds():
+    try:
+        maxfd = os.sysconf("SC_OPEN_MAX")
+    except (AttributeError, ValueError):
+        maxfd = 1024
+
+    os.closerange(3, maxfd)
+
+
 # launch a fork, and restarts it if it fails
 def daemon_run_supervised(f):
     try:
         f()
     except:
+        log = logging.getLogger("root")
         log.warning("Daemon failure, will restart in 15s.:", exc_info=True)
 
         # wait 30s so we don't restart too often
-        time.sleep(15)
+        time.sleep(1)
+        clear_fds()
+
         args = [sys.executable] + sys.argv
         os.execv(sys.executable, args)
 

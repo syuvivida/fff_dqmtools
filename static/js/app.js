@@ -60,50 +60,33 @@ dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'DynamicQuery', function($s
         ]
     };
 
-    DynamicQuery.repeated_search_dct("cluster-state", {
-        url: "/_cluster/stats/",
+    DynamicQuery.repeated_search_dct("info", {
+        url: "/info",
         method: "get",
         _es_callback: function (body) {
-            ctrl.cluster_name = body.cluster_name;
-            ctrl.cluster_timestamp = body.timestamp;
-            ctrl.cluster_data = body;
-
-      console.log(ctrl);
+            ctrl.info_data = body;
+            console.log(ctrl, body);
         }
     });
 
-    DynamicQuery.repeated_search("dqm-stats", "dqm-stats/_search/", query, function (body) {
-        ctrl.hits = body.hits.hits;
-    });
-
     $scope.$on("$destroy", function handler() {
-        DynamicQuery.delete_search("dqm-stats");
+        DynamicQuery.delete_search("info");
     });
 }]);
 
 dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
     var ctrl = {};
-    var query = {
-        "query": {
-            "match_all": {}
-        },
-        "fields" : ["_source", "_timestamp"],
-        "size": 1024,
-        "sort": [
-            { "type": { "order": "asc" }},
-            { "_timestamp": { "order": "desc" }}
-        ]
-    };
 
-    DynamicQuery.repeated_search("stats", "dqm-diskspace,dqm-stats/_search/", query, function (body) {
-        $scope.hits = body.hits.hits;
+    DynamicQuery.repeated_search("list-stats", "list/stats", null, function (body) {
+        $scope.hits = body.hits;
+        console.log(body);
         try {
             _.each($scope.hits, function (hit) {
-                var pc = parseInt(hit._source.disk_used) * 100 / hit._source.disk_total;
-                hit._source._disk_pc = pc;
+                var pc = parseInt(hit.disk_used) * 100 / hit.disk_total;
+                hit.$disk_pc = pc;
 
                 if (hit._type == "dqm-diskspace") {
-                    ctrl.lumi = hit._source.extra.files_seen;
+                    ctrl.lumi = hit.extra.files_seen;
                 }
             });
         } catch (e) {
@@ -112,28 +95,15 @@ dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope,
     });
 
     $scope.$on("$destroy", function handler() {
-        DynamicQuery.delete_search("stats");
+        DynamicQuery.delete_search("list-stats");
     });
 
     $scope.StatsCtrl = ctrl;
 }]);
 
 dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
-    var run_query = {
-        "query": {
-            "match_all": {}
-        },
-        "aggregations" : {
-            "runs" : { "terms" : { "field" : "run", "size": 0 } }
-        },
-    };
-
-    DynamicQuery.repeated_search("lumi-run", "dqm-source-state/_search/", run_query, function (body) {
-        var runs = _.map(body.aggregations.runs.buckets, function (v) {
-            return parseInt(v.key);
-        });
-
-        runs = _.uniq(runs);
+    DynamicQuery.repeated_search("list-runs", "list/runs", null, function (body) {
+        var runs = _.uniq(body.runs);
         runs.sort();
         runs.reverse();
 
@@ -142,7 +112,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, Dyn
     });
 
     $scope.$on("$destroy", function () {
-        DynamicQuery.delete_search("lumi-run");
+        DynamicQuery.delete_search("list-runs");
     });
 }]);
 
@@ -165,28 +135,15 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
         if (!v)
             return;
 
-        console.log("Monitoring run", v);
-        var lumi_query = {
-            "query": {
-                "match": {
-                    "run": v
-                }
-            },
-            "fields" : ["_source", "_timestamp", "_uid"],
-            "size": 1024,
-            "sort": [
-                { "tag": "asc" }
-                //{ "_timestamp": { "order": "desc" }}
-            ]
-        };
-
-        DynamicQuery.repeated_search("lumi-data", "dqm-source-state/_search/", lumi_query, function (body) {
-            lumi.hits = body.hits.hits;
+        DynamicQuery.repeated_search("lumi-data", "list/run/" + parseInt(v), null, function (body) {
+            lumi.hits = body.hits;
             lumi.logs = {};
 
+            // this block sorts the lumiSeen (originally, it's a dictionary,
+            // but we want to see it as a list)
             try {
                 _.each(lumi.hits, function (hit) {
-                    hit.$sortedLumi = lumi.sortLumiSeen(hit._source.extra.lumi_seen);
+                    hit.$sortedLumi = lumi.sortLumiSeen(hit.extra.lumi_seen);
                     if (hit.$sortedLumi.length)
                         hit.$lastLumi = hit.$sortedLumi[hit.$sortedLumi.length - 1].file_ls;
                 });
@@ -194,12 +151,14 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
                 console.log("Error", e);
             }
 
+            // pick out the log entry
+            // so it does not polute "source" button output
             _.each(lumi.hits, function (hit) {
-                if (hit._source && hit._source.extra && hit._source.extra.stdlog) {
-                    var log = hit._source.extra.stdlog;
+                if (hit.extra && hit.extra.stdlog) {
+                    var log = hit.extra.stdlog;
                     lumi.logs[hit._id] = log;
 
-                    delete hit._source.extra.stdlog;
+                    delete hit.extra.stdlog;
                 }
             });
 
@@ -208,7 +167,8 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
                 var timestamps = [];
                 _.each(lumi.hits, function (hit) {
                     // filter by exit code
-                    var ec = hit._source.exit_code;
+                    var ec = hit.exit_code;
+
                     if ((ec === null) || (ec === undefined)) {
                         hit.$ec_class = "";
                     } else if ((ec === 0) || (ec === "0")) {
@@ -220,8 +180,6 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
             } catch (e) {
                 console.log("Error", e);
             }
-
-            $scope.$broadcast("LumiUpdated");
         });
 
     });
@@ -236,7 +194,7 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
 
 dqmApp.factory('DynamicQuery', ['$http', '$window', function ($http, $window) {
     var factory = {
-        base: "/dqm_online_monitoring/",
+        base: "/",
         _searches: {},
         _ti: null
     };
@@ -340,7 +298,7 @@ dqmApp.directive('dqmTimediffField', function ($window) {
                 if (! scope.diff)
                     return;
 
-                var diff_s = (scope.diff - scope.time) / 1000;
+                var diff_s = scope.diff - scope.time;
 
                 scope.diff_s = diff_s;
                 if (diff_s < 60) {
@@ -381,11 +339,11 @@ dqmApp.directive('dqmLumiGraph', function ($window) {
             var g = svg.append("g");
             g.attr("transform", "scale(" + width / 800 + "," + height / 600 + ")");
 
-			g.append("line")
-				.attr("x1", 0).attr("x2", 0)
-				.attr("y1", 0).attr("y2", 100)
+            g.append("line")
+                .attr("x1", 0).attr("x2", 0)
+                .attr("y1", 0).attr("y2", 100)
                 .attr("stroke-width", 2)
-				.attr("stroke", "black");
+                .attr("stroke", "black");
 
             //console.log([2 * Math.PI, radius * radius]);
 
@@ -412,80 +370,80 @@ dqmApp.directive('dqmLumiGraph', function ($window) {
             //    };
             //}
 
-			var unpack_streams = function (lumi) {
-				var keys = _.keys(lumi);
-				return _.map(lumi, function (lst, name) {
-					var obj = {
-						'name': name,
-						'lumi': [],
-						'size': [],
-						'ts': [],
-					};
+            var unpack_streams = function (lumi) {
+                var keys = _.keys(lumi);
+                return _.map(lumi, function (lst, name) {
+                    var obj = {
+                        'name': name,
+                        'lumi': [],
+                        'size': [],
+                        'ts': [],
+                    };
 
-					_.map(lst, function (x) {
-						var splits = x.split(":");
-						var tags = splits[1].split(" ");
+                    _.map(lst, function (x) {
+                        var splits = x.split(":");
+                        var tags = splits[1].split(" ");
 
-						splits = splits[0].split(" ");
-						obj.lumi.push(parseInt(splits[0]));
-						obj.size.push(parseInt(splits[1]));
-						obj.ts.push(parseFloat(splits[2]));
-					});
+                        splits = splits[0].split(" ");
+                        obj.lumi.push(parseInt(splits[0]));
+                        obj.size.push(parseInt(splits[1]));
+                        obj.ts.push(parseFloat(splits[2]));
+                    });
 
-					return obj;
-				});
+                    return obj;
+                });
 
-			};
+            };
 
             scope.$watch('lumi', function (lumi) {
                 if (!lumi) return;
 
-				lumi = unpack_streams(lumi);
+                lumi = unpack_streams(lumi);
                 console.log('new data', lumi);
-	
+    
                 //g.selectAll("g").data(keys).enter().append('g').each(function (x) {
-				//	var packed = lumi[x];
-				//	var elm = d3.select(this);
-				//	var perLumi = (Math.PI*2) / 100;
+                //  var packed = lumi[x];
+                //  var elm = d3.select(this);
+                //  var perLumi = (Math.PI*2) / 100;
 
-				//	var data = _.map(packed, function (x) {
-				//		var splits = x.split(":");
-				//		var tags = splits[1].split(" ");
-				//		console.log(splits, tags);
+                //  var data = _.map(packed, function (x) {
+                //      var splits = x.split(":");
+                //      var tags = splits[1].split(" ");
+                //      console.log(splits, tags);
 
-				//		splits = splits[0].split(" ");
-				//		var lumi = parseInt(splits[0]);
-				//		var size = parseInt(splits[1]);
-				//		var ts = parseFloat(splits[2]);
+                //      splits = splits[0].split(" ");
+                //      var lumi = parseInt(splits[0]);
+                //      var size = parseInt(splits[1]);
+                //      var ts = parseFloat(splits[2]);
 
-				//		return [lumi, size, ts];
-				//	});
-	
-				//	console.log(data, perLumi);
-				//	var startAngle = function (x) {
+                //      return [lumi, size, ts];
+                //  });
+    
+                //  console.log(data, perLumi);
+                //  var startAngle = function (x) {
 
 
-				//	};
+                //  };
 
-				//	elm.selectAll("path")
-				//		.data(data)
-				//		.enter().append("svg:path")
-				//		.attr("d", d3.svg.arc()
-				//			.innerRadius(radius / 4)
-				//			.outerRadius(radius / 3)
-				//			.startAngle(startAngle)
-				//			.endAngle(function (x) { return startAngle(x) + perLumi; })
-				//		)
-				//		.style("fill", function(d, i) { return color(i); });
+                //  elm.selectAll("path")
+                //      .data(data)
+                //      .enter().append("svg:path")
+                //      .attr("d", d3.svg.arc()
+                //          .innerRadius(radius / 4)
+                //          .outerRadius(radius / 3)
+                //          .startAngle(startAngle)
+                //          .endAngle(function (x) { return startAngle(x) + perLumi; })
+                //      )
+                //      .style("fill", function(d, i) { return color(i); });
                 //});
 
-				//svg.selectAll("path")
-				//	.data(d3.layout.pie())
-				//	.enter().append("svg:path")
-				//	.attr("d", d3.svg.arc()
-				//	.innerRadius(r / 2)
-				//	.outerRadius(r))
-				//	.style("fill", function(d) { return color(1); });
+                //svg.selectAll("path")
+                //  .data(d3.layout.pie())
+                //  .enter().append("svg:path")
+                //  .attr("d", d3.svg.arc()
+                //  .innerRadius(r / 2)
+                //  .outerRadius(r))
+                //  .style("fill", function(d) { return color(1); });
 
 
                 //var path = svg.datum(lumi).selectAll("path")
