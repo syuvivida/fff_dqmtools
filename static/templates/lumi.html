@@ -61,6 +61,7 @@
             {{ hit.cmssw_lumi }}
             <button type="button" ng-hide="_tr_log" ng-click="_tr_log = reverse_log(LumiCtrl.logs[hit._id])" class="btn btn-default btn-xs">log</button>
             <button type="button" ng-show="_tr_log" ng-click="_tr_log = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+            <a ng-href="http://{{hit.hostname}}:9215/show/log/{{hit._id}}" target="_blank" class="btn btn-default btn-xs">full</a>
           </td>
           <td class="align-right actions">
             {{ hit.$lastLumi }}
@@ -73,7 +74,7 @@
             <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit.extra.ps_info)" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
             <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
           </td>
-          <td class="align-right actions"> {{ hit.events_total }} </td>
+          <td class="align-right actions"><span ng-show="hit.events_total">{{ hit.events_total }} ({{ hit.events_rate }} evt/s)</span></td>
           <td>
             <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit)" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-comment"></span></button>
             <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-sm active"><span class="glyphicon glyphicon-remove"></span></button>

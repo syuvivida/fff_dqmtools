@@ -32,23 +32,32 @@ log = logging.getLogger("root")
 #db = test()
 
 import fff_monitoring
+import fff_cluster
 
 class WebServer(object):
     def __init__(self, db=None):
         self.db = db
-        if self.db is None:
-            self.db = sqlite3.connect(":memory:")
-            self.create_tables()
 
+        if isinstance(self.db, basestring):
+            self.db = sqlite3.connect(self.db)
+        elif self.db is None:
+            self.db = sqlite3.connect(":memory:")
+        
+        self.create_tables()
         self.bottle = __import__('bottle')
         self.setup_routes()
+
+    def drop_tables(self):
+        cur = self.db.cursor()
+        cur.execute("DROP TABLE IF EXISTS Monitoring")
+
+        self.db.commit()
 
     def create_tables(self):
         cur = self.db.cursor()
 
-        cur.execute("DROP TABLE IF EXISTS Monitoring")
         cur.execute("""
-        CREATE TABLE Monitoring (
+        CREATE TABLE IF NOT EXISTS Monitoring (
             id TEXT PRIMARY KEY NOT NULL,
             timestamp TIMESTAMP,
             type TEXT,
@@ -58,9 +67,9 @@ class WebServer(object):
             body BLOB
         )""")
 
-        cur.execute("CREATE INDEX M_type_index ON Monitoring (type)")
-        cur.execute("CREATE INDEX M_host_index ON Monitoring (host)")
-        cur.execute("CREATE INDEX M_run_index ON Monitoring (run)")
+        cur.execute("CREATE INDEX IF NOT EXISTS M_type_index ON Monitoring (type)")
+        cur.execute("CREATE INDEX IF NOT EXISTS M_host_index ON Monitoring (host)")
+        cur.execute("CREATE INDEX IF NOT EXISTS M_run_index ON Monitoring (run)")
 
         self.db.commit()
 
@@ -106,6 +115,7 @@ class WebServer(object):
             return {
                 'hostname': socket.gethostname(),
                 'timestamp': time.time(),
+                'cluster': fff_cluster.get_node(),
             }
 
         @bottle.route("/list/runs", method=['GET', 'POST'])
@@ -144,6 +154,26 @@ class WebServer(object):
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run IS NULL ORDER BY tag ASC")
             return { 'hits': prepare_docs(c) }
+
+        @bottle.route("/show/log/<id>", method=['GET', 'POST'])
+        def list_stats(id):
+            c = self.db.cursor()
+            c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
+            doc = c.fetchone()
+
+            b = json.loads(doc[0])
+            fn = b["stdout_fn"]
+            fn = os.path.realpath(fn)
+
+            allowed = ["/var/log/hltd/pid/"]
+            for p in allowed:
+                if os.path.commonprefix([fn, p]) == p:
+                    relative = os.path.relpath(fn, p)
+                    #print "in allowed", p, r
+                    return bottle.static_file(relative, root=p, mimetype="text/plain")
+
+            raise bottle.HTTPError(500, "Log path not found.")
+
 
     def run_test(self):
         self.bottle.run(host="localhost", port=8080, reloader=True)

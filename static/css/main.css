@@ -17,3 +17,5 @@ td.timestamp { white-space: nowrap; }
 td.actions { white-space: nowrap; }
 
 td pre.prettyprint { white-space: pre-wrap; }
+
+ul.nodes {  list-style-type: none; padding-left: 30px; }

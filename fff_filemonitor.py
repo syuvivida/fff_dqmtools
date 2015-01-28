@@ -56,10 +56,11 @@ class FileMonitor(object):
 
         ret = self.upload_file(fp)
         #if ret:
-        #os.unlink(fp)
+        ret = os.unlink(fp)
 
     def process_dir(self):
-        for f in os.listdir(self.path):
+        lst = os.listdir(self.path)
+        for f in lst:
             fp = os.path.join(self.path, f)
             self.process_file(fp)
 

@@ -21,11 +21,11 @@ import select, signal, errno, fcntl
 
 log = logging.getLogger("root")
 
-def run_daemon():
+def run_daemon(opt):
     import fff_web
     import fff_filemonitor
 
-    fweb = fff_web.WebServer()
+    fweb = fff_web.WebServer(db=opt["db"])
 
     fmon = fff_filemonitor.FileMonitor(
         path = "/tmp/dqm_monitoring/",
@@ -38,6 +38,8 @@ def run_daemon():
     poll = select.poll()
     poll.register(fmon_fd, select.POLLIN)
     poll.register(fweb_fd, select.POLLIN)
+
+    fmon.process_dir()
 
     try:
         while True:
@@ -64,17 +66,27 @@ def run_daemon():
 if __name__ == "__main__":
     import fff_daemon
 
-    do_mode = "daemon"
-    do_foreground = False
+    opt = {
+        'do_foreground': False,
+        'db': "/var/lib/fff_dqmtools/db.sqlite3",
+    }
 
-    if "--foreground" in sys.argv:
-        do_foreground = True
+    arg = sys.argv[1:]
+    while arg:
+        a = arg.pop(0)
+        if a == "--foreground":
+            opt["do_foreground"] = True
+            continue
 
-    if "--reindex" in sys.argv:
-        do_mode = "reindex"
-        do_foreground = True
+        if a == "--db":
+            opt["db"] = arg.pop(0)
+            continue
 
-    if not do_foreground:
+        sys.stderr.write("Invalid parameter: %s." % a);
+        sys.stderr.flush()
+        sys.exit(1)
+
+    if not opt["do_foreground"]:
         # try to take the lock or quit
         sock = fff_daemon.socket_lock("fff_monitoring")
         if sock is None:
@@ -90,10 +102,4 @@ if __name__ == "__main__":
     log_capture = fff_daemon.daemon_setup_log_capture(log)
 
     log.info("Service started, pid is %d.", os.getpid())
-
-    if do_mode == "daemon":
-        fff_daemon.daemon_run_supervised(run_daemon)
-    #elif do_mode == "reindex":
-    #    service.recreate_index()
-    else:
-        raise Exception("Unknown action.")
+    fff_daemon.daemon_run_supervised(lambda: run_daemon(opt))

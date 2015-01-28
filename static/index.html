@@ -38,17 +38,26 @@
               <ul class="nav navbar-nav">
                 <li ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Machines</a></li>
                 <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">cmsRun jobs</a></li>
-                <li> {{ $route.current.menu }} </li>
-              </ul>
 
-              <ul class="nav navbar-nav">
-                <li>
-                  <a>
+                <li class="dropdown">
+                  <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
                     <span class="label label-info">
                       {{ ClusterCtrl.info_data.hostname }}
-                      / {{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}
+                      [{{ ClusterCtrl.info_data.cluster.label }}]
                     </span>
                   </a>
+
+                  <ul class="dropdown-menu" role="menu">
+                    <li><a>{{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
+                    <li class="divider"></li>
+
+                    <li ng-repeat="(k,v) in ClusterCtrl.info_data.cluster._all">
+                      <a>{{ k }}:</a>
+                      <ul class="nodes">
+                        <li ng-repeat="host in v"><a ng-href="http://{{ host }}:9215/">{{ host }}</a></li>
+                      </ul>
+                    </li>
+                  </ul>
                 </li>
               </ul>
 

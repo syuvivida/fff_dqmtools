@@ -125,12 +125,6 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
         $location.path("/lumi/" + v + "/");
     };
 
-    lumi.sortLumiSeen = function (v) {
-        return _.sortBy(v, function(val, key, object) {
-            return key;
-        });
-    };
-
     $scope.$watch("LumiCtrl.run", function (v) {
         if (!v)
             return;
@@ -143,9 +137,19 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
             // but we want to see it as a list)
             try {
                 _.each(lumi.hits, function (hit) {
-                    hit.$sortedLumi = lumi.sortLumiSeen(hit.extra.lumi_seen);
-                    if (hit.$sortedLumi.length)
-                        hit.$lastLumi = hit.$sortedLumi[hit.$sortedLumi.length - 1].file_ls;
+                    var lines = [];
+                    var ls = hit.extra.lumi_seen;
+                    var skeys = _.keys(ls);
+                    skeys.sort();
+
+                    hit.$sortedLumi = _.map(skeys, function (key) {
+                        // key is "lumi00032"
+                        return "[" + key.substring(4) + "]: " + ls[key];
+                    });
+
+                    if (skeys.length) {
+                        hit.$lastLumi = parseInt(skeys[skeys.length - 1].substring(4));
+                    }
                 });
             } catch (e) {
                 console.log("Error", e);
