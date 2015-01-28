@@ -12,8 +12,8 @@ def call(*kargs, **kwargs):
 def install_local(rpm):
     call(["sudo", "rm", "-vf", "/usr/local/bin/fff_monitoring.py"])
     call(["sudo", "rm", "-vf", "/usr/local/bin/fff_monitoring.pyc"])
-    call(["sudo", "yum", "-y", "install", rpm])
-    call(["sudo", "ps", "auxf"])
+    call(["sudo", "yum", "-y", "reinstall", rpm])
+    #call(["sudo", "ps", "auxf"])
 
 def install_remote(spath, host):
     print "*"*80

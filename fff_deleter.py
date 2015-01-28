@@ -11,6 +11,19 @@ import time
 import json
 from collections import OrderedDict
 
+def prepare_imports():
+    # minihack
+    sys.path.append('/opt/hltd/python')
+    sys.path.append('/opt/hltd/lib')
+
+    sys.path.append('./env/lib/python2.7/site-packages/inotify/')
+
+    thp = os.path.dirname(__file__)
+    sys.path.append(os.path.join(thp, "./"))
+    sys.path.append(os.path.join(thp, "./lib"))
+
+prepare_imports()
+
 log = logging.getLogger("root")
 
 re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
@@ -277,9 +290,7 @@ class FileDeleter(object):
 
 import sys, os
 if __name__ == "__main__":
-    fff_daemon_tools = ("/usr/local/bin/fff_monitoring.py", "fff_monitoring", )
-    sys.path.append(os.path.abspath(fff_daemon_tools[0]))
-    mod = __import__(fff_daemon_tools[1])
+    import fff_daemon
 
     opt = {}
     # application tag, used in locking/logging
@@ -313,20 +324,20 @@ if __name__ == "__main__":
 
     if not opt["do_foreground"]:
         # try to take the lock or quit
-        sock = mod.socket_lock(opt["app_tag"])
+        sock = fff_daemon.socket_lock(opt["app_tag"])
         if sock is None:
             sys.stderr.write("Already running, tag was %s, exitting.\n" % opt["app_tag"])
             sys.stderr.flush()
             sys.exit(1)
 
-        mod.daemon_detach(
+        fff_daemon.daemon_detach(
             "/var/log/%s.log" % opt["app_tag"],
             "/var/run/%s.pid" % opt["app_tag"])
 
         args = [sys.executable] + sys.argv + ["--foreground"]
         os.execv(sys.executable, args)
 
-    log_capture = mod.daemon_setup_logging(log)
+    log_capture = fff_daemon.daemon_setup_log_capture(log)
 
     # thresholds rename and delete must be in order
     # in other words, always: delete > rename
@@ -345,5 +356,4 @@ if __name__ == "__main__":
     )
 
     log.info("Service started, pid is %d.", os.getpid())
-    mod.daemon_run_supervised(service.run_daemon)
-    #service.run_daemon()
+    fff_daemon.daemon_run_supervised(service.run_daemon)
