@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import logging
 import json
 import sqlite3
@@ -42,7 +41,7 @@ class WebServer(object):
             self.db = sqlite3.connect(self.db)
         elif self.db is None:
             self.db = sqlite3.connect(":memory:")
-        
+
         self.create_tables()
         self.bottle = __import__('bottle')
         self.setup_routes()
@@ -52,6 +51,7 @@ class WebServer(object):
         cur.execute("DROP TABLE IF EXISTS Monitoring")
 
         self.db.commit()
+        cur.close()
 
     def create_tables(self):
         cur = self.db.cursor()
@@ -72,6 +72,7 @@ class WebServer(object):
         cur.execute("CREATE INDEX IF NOT EXISTS M_run_index ON Monitoring (run)")
 
         self.db.commit()
+        cur.close()
 
     def direct_upload(self, document, json_doc=None):
         cur = self.db.cursor()
@@ -90,6 +91,7 @@ class WebServer(object):
         ))
 
         self.db.commit()
+        cur.close()
 
     def setup_routes(self):
         static_path = os.path.dirname(__file__)
@@ -112,10 +114,18 @@ class WebServer(object):
 
         @bottle.get("/info")
         def info():
+            c = self.db.cursor()
+            c.execute("PRAGMA page_size")
+            ps = c.fetchone()[0]
+            c.execute("PRAGMA page_count")
+            pc = c.fetchone()[0]
+            c.close()
+
             return {
                 'hostname': socket.gethostname(),
                 'timestamp': time.time(),
                 'cluster': fff_cluster.get_node(),
+                'db_size': ps*pc,
             }
 
         @bottle.route("/list/runs", method=['GET', 'POST'])
@@ -125,6 +135,7 @@ class WebServer(object):
 
             runs = map(lambda x: x[0], c.fetchall())
             runs = filter(lambda x: x is not None, runs)
+            c.close()
 
             return { 'runs': runs }
 
@@ -147,19 +158,24 @@ class WebServer(object):
         def list_run(run):
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run = ? ORDER BY tag ASC", (run, ))
-            return { 'hits': prepare_docs(c) }
+            docs = { 'hits': prepare_docs(c) }
+            c.close()
+            return docs
 
         @bottle.route("/list/stats", method=['GET', 'POST'])
         def list_stats():
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run IS NULL ORDER BY tag ASC")
-            return { 'hits': prepare_docs(c) }
+            docs = { 'hits': prepare_docs(c) }
+            c.close()
+            return docs
 
         @bottle.route("/show/log/<id>", method=['GET', 'POST'])
         def list_stats(id):
             c = self.db.cursor()
             c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
             doc = c.fetchone()
+            c.close()
 
             b = json.loads(doc[0])
             fn = b["stdout_fn"]
@@ -175,47 +191,27 @@ class WebServer(object):
             raise bottle.HTTPError(500, "Log path not found.")
 
 
-    def run_test(self):
-        self.bottle.run(host="localhost", port=8080, reloader=True)
+    def run_test(self, port=8080):
+        self.bottle.run(host="0.0.0.0", port=port, reloader=True)
 
-    def create_wsgi_server(self, host="::0", port=9215):
-        from wsgiref.simple_server import make_server
-        from wsgiref.simple_server import WSGIRequestHandler, WSGIServer
-        import socket
+    def run_greenlet(self, host="::0", port=9215, **kwargs):
+        from gevent import wsgi, pywsgi, local
+        #if not self.options.pop('fast', None): wsgi = pywsgi
+
+        addr = socket.getaddrinfo(host, port, socket.AF_INET6, 0, socket.SOL_TCP)
+        listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(addr[0][-1])
+        listener.listen(15)
+
+        #listener = (host, port, )
 
         app = self.bottle.default_app()
-
-        class FixedHandler(WSGIRequestHandler):
-            def address_string(self): # Prevent reverse DNS lookups please.
-                return self.client_address[0]
-
-            def log_request(*args, **kw):
-                return WSGIRequestHandler.log_request(*args, **kw)
-
-        handler_cls = FixedHandler
-        server_cls  = WSGIServer
-
-        if ':' in host: # Fix wsgiref for IPv6 addresses.
-            if getattr(server_cls, 'address_family') == socket.AF_INET:
-                class server_cls(server_cls):
-                    address_family = socket.AF_INET6
-
-        srv = make_server(host, port, app, server_cls, handler_cls)
-        return srv
-
-        # this is for the reference:
-        #try:
-        #    srv.serve_forever()
-        #except KeyboardInterrupt:
-        #    srv.server_close() # Prevent ResourceWarning: unclosed socket
-        #    raise
-
-    def handle_request(self, srv):
-        srv.handle_request()
+        server = wsgi.WSGIServer(listener, app, **kwargs)
+        server.serve_forever()
 
 if __name__ == "__main__":
-    db = sqlite3.connect("mydb.db")
+    db = sqlite3.connect("./db.sqlite3")
     w = WebServer(db=db)
 
-    srv = w.create_wsgi_server()
-    srv.serve_forever()
+    w.run_greenlet(port=9315)

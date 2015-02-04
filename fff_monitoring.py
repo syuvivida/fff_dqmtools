@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-
-import os
 import sys
+import os
+import logging
+import signal, errno, fcntl
 
 def prepare_imports():
     # minihack
@@ -16,50 +17,25 @@ def prepare_imports():
 
 prepare_imports()
 
-import logging
-import select, signal, errno, fcntl
-
 log = logging.getLogger("root")
 
 def run_daemon(opt):
+    import gevent
     import fff_web
     import fff_filemonitor
 
     fweb = fff_web.WebServer(db=opt["db"])
 
     fmon = fff_filemonitor.FileMonitor(
-        path = "/tmp/dqm_monitoring/",
+        path = opt["path"],
         web_process = fweb,
     )
 
-    fmon_fd = fmon.create_watcher()
-    fweb_fd = fweb.create_wsgi_server()
-
-    poll = select.poll()
-    poll.register(fmon_fd, select.POLLIN)
-    poll.register(fweb_fd, select.POLLIN)
-
-    fmon.process_dir()
+    fm = gevent.spawn(lambda: fmon.run_greenlet())
+    fw = gevent.spawn(lambda: fweb.run_greenlet(port=opt["port"]))
 
     try:
-        while True:
-            ready = poll.poll(30*1000)
-            if not ready:
-                # timeout actions
-                pass
-
-            for fd, event in ready:
-                if fd == fmon_fd.fileno():
-                    fmon.handle_watcher(fmon_fd)
-
-                if fd == fweb_fd.fileno():
-                    fweb.handle_request(fweb_fd)
-
-    except select.error as e:
-        if e[0] == errno.EINTR:
-            return
-
-        raise
+        gevent.joinall([fm, fw], raise_error=True)
     except KeyboardInterrupt:
         return
 
@@ -69,6 +45,8 @@ if __name__ == "__main__":
     opt = {
         'do_foreground': False,
         'db': "/var/lib/fff_dqmtools/db.sqlite3",
+        'path': "/tmp/dqm_monitoring/",
+        'port': 9215,
     }
 
     arg = sys.argv[1:]
@@ -80,6 +58,14 @@ if __name__ == "__main__":
 
         if a == "--db":
             opt["db"] = arg.pop(0)
+            continue
+
+        if a == "--port":
+            opt["port"] = int(arg.pop(0))
+            continue
+
+        if a == "--path":
+            opt["path"] = arg.pop(0)
             continue
 
         sys.stderr.write("Invalid parameter: %s." % a);

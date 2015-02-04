@@ -125,6 +125,12 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
         $location.path("/lumi/" + v + "/");
     };
 
+    lumi.ec_hide = {};
+
+    lumi.ec_toggle = function (c) {
+        lumi.ec_hide[c] = !(lumi.ec_hide[c]);
+    };
+
     $scope.$watch("LumiCtrl.run", function (v) {
         if (!v)
             return;
@@ -174,7 +180,7 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
                     var ec = hit.exit_code;
 
                     if ((ec === null) || (ec === undefined)) {
-                        hit.$ec_class = "";
+                        hit.$ec_class = "success";
                     } else if ((ec === 0) || (ec === "0")) {
                         hit.$ec_class = "warning";
                     } else {
@@ -323,6 +329,92 @@ dqmApp.directive('dqmTimediffField', function ($window) {
         template: '<span class="label label-success" ng-class="diff_class">{{ diff_s | number:0 }}&nbsp;s.</span>'
     };
 });
+
+dqmApp.directive('dqmMemoryGraph', function ($window) {
+    // the "drawing" code is taken from http://bl.ocks.org/mbostock/4063423
+    var d3 = $window.d3;
+
+    return {
+        restrict: 'E',
+        scope: { 'data': '=', 'width': '@', 'height': '@' },
+        link: function (scope, elm, attrs) {
+            var width = parseInt(scope.width);
+            var height = parseInt(scope.height);
+
+            var div = d3.select(elm[0]).append("div");
+            div.attr("style", "position: relative");
+
+            var svg = div.append("svg");
+            svg.attr("width", width).attr("height", height);
+
+            var chart = nv.models.lineChart()
+                .margin({left: 100})
+                .useInteractiveGuideline(false)
+                .showLegend(true)
+                .transitionDuration(350)
+                .showYAxis(true)
+                .showXAxis(true)
+                .xScale(d3.time.scale());
+            ;
+
+            console.log("chart", chart);
+
+            chart.interactiveLayer.tooltip.enabled(false);
+            chart.interactiveLayer.tooltip.position({"left": 0, "top": 0});
+
+            chart.xAxis
+                .axisLabel('Time')
+                .tickFormat(d3.time.format('%X'));
+
+            chart.yAxis
+                .axisLabel('Mem (mb)')
+                .tickFormat(d3.format('.02f'));
+
+            scope.$watch("data", function (data) {
+                if (!data)
+                    return;
+
+                // unpack the data
+                // we get "timestamp" -> "statm"
+                var keys = _.keys(data);
+                keys.sort()
+
+                // this is the content labels
+                // from /proc/<pid>/statm
+				// it's in pages, so we convert to megabytes
+                var labels = ["size", "resident", "share", "text", "lib", "data", "dt"];
+                var displayed = {"size": 1, "resident": 1 };
+                var streams = {};
+
+                _.each(labels, function (l) {
+                    var d = (displayed[l] === undefined);
+                    streams[l] = { key: l, values: [], disabled: d };
+                });
+
+                _.each(keys, function (key) {
+                    var time = new Date(parseInt(key)*1000);
+
+                    var unpacked = data[key].split(" ");
+                    _.each(unpacked, function (v, index) {
+                        var l = labels[index];
+                        streams[l].values.push({
+                            'y': parseFloat(v) * 4 / 1024,
+                            'x': time,
+                        });
+                    });
+                });
+
+                var display = _.values(streams);
+                svg
+                    .datum(display)
+                    .transition().duration(500)
+                    .call(chart)
+                ;
+            });
+        }
+    };
+});
+
 
 dqmApp.directive('dqmLumiGraph', function ($window) {
     // the "drawing" code is taken from http://bl.ocks.org/mbostock/4063423

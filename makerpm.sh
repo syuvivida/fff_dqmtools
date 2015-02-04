@@ -25,7 +25,7 @@ AutoReqProv: no
 Provides:/opt/fff_dqmtools
 Provides:/etc/logrotate.d/fff_dqmtools
 Provides:/etc/init.d/fff_monitoring
-Requires:python
+Requires:python, python-gevent
 %description
 DQM tools for FFF.
 %prep

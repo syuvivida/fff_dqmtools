@@ -24,9 +24,10 @@
       <h2>Run <span class="label label-success">{{ LumiCtrl.run }}</span></h2>
     </div>
 
-    <div class="scheme">
-      <span class="label label-warning">stopped</span>
-      <span class="label label-danger">crashed</span>
+    <div class="scheme filter">
+      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.success, 'btn-success': !LumiCtrl.ec_hide.success }" ng-click="LumiCtrl.ec_toggle('success')" class="btn btn-xs">running</a>
+      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.warning, 'btn-warning': !LumiCtrl.ec_hide.warning }" ng-click="LumiCtrl.ec_toggle('warning')" class="btn btn-xs">stopped</a>
+      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.danger,  'btn-danger' : !LumiCtrl.ec_hide.danger  }" ng-click="LumiCtrl.ec_toggle('danger')"  class="btn btn-xs">crashed</a>
     </div>
 
     {{ LumiCtrl.tags }}
@@ -47,7 +48,7 @@
         </tr>
       </thead>
       <tbody ng-repeat="hit in LumiCtrl.hits">
-        <tr ng-class="hit.$ec_class">
+        <tr ng-class="hit.$ec_class" ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]">
           <td class="test">
             {{ hit._meta.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}
           </td>
@@ -73,6 +74,8 @@
             {{ hit.extra.ps_info.VmRSS | dqm_megabytes }}
             <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit.extra.ps_info)" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
             <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+            <button type="button" ng-hide="_tr_graph" ng-click="_tr_graph = true" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></button>
+            <button type="button" ng-show="_tr_graph" ng-click="_tr_graph = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
           </td>
           <td class="align-right actions"><span ng-show="hit.events_total">{{ hit.events_total }} ({{ hit.events_rate }} evt/s)</span></td>
           <td>
@@ -85,6 +88,9 @@
         </td></tr>
         <tr ng-show="_tr_log"><td colspan="100">
           <pre class="prettyprint" lang="javascript" ng-bind="_tr_log"></pre>
+        </td></tr>
+        <tr ng-if="_tr_graph"><td colspan="100">
+          <dqm-memory-graph height="300" width="800" data="hit.extra.mem_info" />
         </td></tr>
       </tbody>
     </table>
