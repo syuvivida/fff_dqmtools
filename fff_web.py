@@ -33,6 +33,9 @@ log = logging.getLogger("root")
 import fff_monitoring
 import fff_cluster
 
+# fff_monitoring fixed the imports for us
+import bottle
+
 class WebServer(object):
     def __init__(self, db=None):
         self.db = db
@@ -43,7 +46,6 @@ class WebServer(object):
             self.db = sqlite3.connect(":memory:")
 
         self.create_tables()
-        self.bottle = __import__('bottle')
         self.setup_routes()
 
     def drop_tables(self):
@@ -96,8 +98,6 @@ class WebServer(object):
     def setup_routes(self):
         static_path = os.path.dirname(__file__)
         static_path = os.path.join(static_path, "./static/")
-
-        bottle = self.bottle
 
         @bottle.route('/static/<filepath:path>')
         def static(filepath):
@@ -191,8 +191,41 @@ class WebServer(object):
             raise bottle.HTTPError(500, "Log path not found.")
 
 
+        @bottle.route("/utils/kill_proc/<id>", method=['POST'])
+        def kill_proc(id):
+            from bottle import request
+            data = json.loads(request.body.read())
+
+            # check if id known to us
+            c = self.db.cursor()
+            c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
+            doc = c.fetchone()
+            c.close()
+
+            if not doc:
+                raise bottle.HTTPResponse("Process not found.", status=404)
+
+            b = json.loads(doc[0])
+            pid = int(b["pid"])
+
+            if pid != int(data["pid"]):
+                raise bottle.HTTPResponse("Process and pid not found.", status=404)
+
+            if b.has_key("exit_code"):
+                raise bottle.HTTPResponse("Process already died.", status=404)
+
+            signal = int(data["signal"])
+            if signal not in [9, 15, 11, 3, 2, 12]:
+                raise bottle.HTTPResponse("Invalid signal number.", status=500)
+
+            import subprocess
+            r = subprocess.call(["kill", "-s", str(signal), str(pid)])
+
+            body = "Process killed, kill exit_code: %d" % r
+            return body
+
     def run_test(self, port=8080):
-        self.bottle.run(host="0.0.0.0", port=port, reloader=True)
+        bottle.run(host="0.0.0.0", port=port, reloader=True)
 
     def run_greenlet(self, host="::0", port=9215, **kwargs):
         from gevent import wsgi, pywsgi, local
@@ -206,7 +239,7 @@ class WebServer(object):
 
         #listener = (host, port, )
 
-        app = self.bottle.default_app()
+        app = bottle.default_app()
         server = wsgi.WSGIServer(listener, app, **kwargs)
         server.serve_forever()
 

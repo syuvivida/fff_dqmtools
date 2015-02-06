@@ -1,5 +1,35 @@
 <div ng-controller="LumiCtrl">
 
+  <script type="text/ng-template" id="lumiKillModal.html">
+    <div class="modal-header">
+      <h3 class="modal-title">Kill {{ data.hit.tag }}?</h3>
+    </div>
+    <div class="modal-body" ng-init="kill_signal = 15">
+      <p> The process you are killing has the id:</p>
+      <pre>{{ data.hit._id }} </pre>
+      <p>Please type in the pid number  ({{ data.hit.pid }}) in order to confirm.</p>
+      <div>
+        <form class="form-inline">
+          <div class="form-group">
+            <label for="verify-pid">Pid</label>
+            <input type="text" class="form-control" id="verify-pid" ng-model="kill_pid">
+          </div>
+          <div class="form-group">
+            <label for="signal">Signal</label>
+            <select class="form-control" id="signal" ng-model="kill_signal">
+              <option value="15">15: SIGTERM</option>
+              <option value="9">9: SIGKILL</option>
+            </select>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="modal-footer">
+     <button class="btn btn-primary" ng-disabled="kill_pid != data.hit.pid" ng-click="$close({ signal: kill_signal })">OK</button>
+     <button class="btn btn-warning" ng-click="$dismiss('cancel')">Cancel</button>
+    </div>
+  </script>
+
   <div ng-controller="LumiRunCtrl">
     <div ng-show="runs_loaded">
       <div ng-show="runs.length"  class="runs alert-success alert">
@@ -38,7 +68,7 @@
           <th>Timestamp</th>
           <th>Delay</th>
           <th>Exit code</th>
-          <th>Hostname / Pid </th>
+          <th>Pid </th>
           <th>Tag</th>
           <th class="align-right">Current lumi</th>
           <th class="align-right">Seen lumi</th>
@@ -49,14 +79,19 @@
       </thead>
       <tbody ng-repeat="hit in LumiCtrl.hits">
         <tr ng-class="hit.$ec_class" ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]">
-          <td class="test">
+          <td class="timestamp">
             {{ hit._meta.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}
           </td>
           <td><dqm-timediff-field time="hit._meta.timestamp" diff="ClusterCtrl.info_data.timestamp" /></td>
           <td class="align-right">
-            {{ hit.exit_code | dqm_statuscode }}
+            <span ng-hide="hit.exit_code == undefined">
+              {{ hit.exit_code }}
+            </span>
+            <span ng-show="hit.exit_code == undefined">
+              <button type="button" ng-click="LumiCtrl.openKillDialog(hit)" class="btn btn-default btn-xs btn-success">kill</button>
+            </span>
           </td>
-          <td> {{ hit.hostname }} / {{ hit.pid }} </td>
+          <td> {{ hit.pid }} </td>
           <td> {{ hit.tag }} </td>
           <td class="align-right actions">
             {{ hit.cmssw_lumi }}
@@ -79,8 +114,8 @@
           </td>
           <td class="align-right actions"><span ng-show="hit.events_total">{{ hit.events_total }} ({{ hit.events_rate }} evt/s)</span></td>
           <td>
-            <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit)" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-comment"></span></button>
-            <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-sm active"><span class="glyphicon glyphicon-remove"></span></button>
+            <button type="button" ng-hide="_tr_source" ng-click="_tr_source = toJson(hit)" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></button>
+            <button type="button" ng-show="_tr_source" ng-click="_tr_source = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
           </td>
         </tr>
         <tr ng-show="_tr_source"><td colspan="100">

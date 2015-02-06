@@ -1,8 +1,8 @@
-var dqmApp = angular.module('dqmApp', ['ngRoute']);
+var dqmApp = angular.module('dqmApp', ['ngRoute', 'ui.bootstrap']);
 
 dqmApp.controller('NavigationController', [
-    '$scope', '$location', '$route', '$http', 'DynamicQuery',
-    function($scope, $location, $route, $http, DynamicQuery) {
+    '$scope', '$window', '$location', '$route', '$http', 'DynamicQuery',
+    function($scope, $window, $location, $route, $http, DynamicQuery) {
 
     $scope.$route = $route;
 
@@ -25,6 +25,16 @@ dqmApp.controller('NavigationController', [
     $scope.debug_object = function (c) {
         console.log("Debug object: ", c);
         return c;
+    };
+
+    $scope.alerts = [];
+
+    $scope.addAlert = function(body) {
+        $scope.alerts.push(body);
+        $window.scrollTo(0, 0);
+    };
+    $scope.closeAlert = function(index) {
+        $scope.alerts.splice(index, 1);
     };
 
     $scope.$watch(function () { return $http.pendingRequests.length; }, function (v) {
@@ -116,7 +126,9 @@ dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, Dyn
     });
 }]);
 
-dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routeParams', function($scope, DynamicQuery, $location, $routeParams) {
+dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '$routeParams', '$modal',
+        function($scope, $http, DynamicQuery, $location, $routeParams, $modal) {
+
     var lumi = {
         run: $routeParams.run
     };
@@ -198,9 +210,39 @@ dqmApp.controller('LumiCtrl', ['$scope', 'DynamicQuery', '$location', '$routePar
         DynamicQuery.delete_search("lumi-data");
     });
 
+    lumi.openKillDialog = function (hit) {
+        console.log("openining");
+        var instance = $modal.open({
+            templateUrl: 'lumiKillModal.html',
+            controller: 'LumiKillDialogCtrl',
+            scope: $scope,
+            resolve: {
+                data: function () {
+                    return { hit: hit };
+                }
+            }
+        });
+
+        instance.result.then(function (ret) {
+            var body = { pid: hit.pid, signal: ret.signal };
+            var p = $http.post("/utils/kill_proc/" + hit._id, body);
+            
+            p.then(function (resp) {
+                $scope.addAlert({ type: 'success', strong: "Success!", msg: resp.data });
+            }, function (resp) {
+                $scope.addAlert({ type: 'danger', strong: "Failure!", msg: resp.data });
+            });
+        }, function () {
+            // aborted, do nothing
+        });
+    };
+
     $scope.LumiCtrl = lumi;
 }]);
 
+dqmApp.controller('LumiKillDialogCtrl', function ($scope, $modalInstance, data) {
+    $scope.data = data;
+})
 
 dqmApp.factory('DynamicQuery', ['$http', '$window', function ($http, $window) {
     var factory = {
@@ -284,15 +326,6 @@ dqmApp.filter("dqm_megabytes", function() {
         s = s + "mb";
 
         return s;
-    };
-});
-
-dqmApp.filter("dqm_statuscode", function() {
-    return function(input) {
-        if ((input === undefined) || (input === null))
-            return "running";
-
-        return input;
     };
 });
 
@@ -381,7 +414,7 @@ dqmApp.directive('dqmMemoryGraph', function ($window) {
 
                 // this is the content labels
                 // from /proc/<pid>/statm
-				// it's in pages, so we convert to megabytes
+                // it's in pages, so we convert to megabytes
                 var labels = ["size", "resident", "share", "text", "lib", "data", "dt"];
                 var displayed = {"size": 1, "resident": 1 };
                 var streams = {};
