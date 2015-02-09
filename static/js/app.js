@@ -84,6 +84,47 @@ dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'DynamicQuery', function($s
     });
 }]);
 
+dqmApp.controller('DeleteCtrl', ['$scope', '$http', '$modal', '$window', function ($scope, $http, $modal, $window) {
+    var ctrl = {};
+
+    var dropRun = function (run) {
+        var body = { run: run };
+        var rs = "[" + run + "] ";
+        var p = $http.post("/utils/drop_run", body);
+        
+        p.then(function (resp) {
+            $scope.addAlert({ type: 'success', strong: rs + "Success!", msg: resp.data });
+        }, function (resp) {
+            $scope.addAlert({ type: 'danger', strong: rs + "Failure!", msg: resp.data });
+        });
+    };
+
+    ctrl.openDeleteDialog = function () {
+        var instance = $modal.open({
+            templateUrl: 'templates/modalDropDialog.html',
+            controller: 'SimpleDataDialogCtrl',
+            scope: $scope,
+            resolve: {
+                data: function () { return {}; }
+            }
+        });
+
+        instance.result.then(function (ret) {
+            var runs = _.map(ret.runs.split(" "), function(x) {
+                return parseInt($window.S(x).s);
+            });
+
+            var runs = _.filter(runs, function (x) { return !isNaN(x); });
+
+            _.each(runs, dropRun);
+        }, function () {
+            // aborted, do nothing
+        });
+    };
+
+    $scope.DeleteCtrl = ctrl;
+}]);
+
 dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
     var ctrl = {};
 
@@ -211,10 +252,9 @@ dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '
     });
 
     lumi.openKillDialog = function (hit) {
-        console.log("openining");
         var instance = $modal.open({
-            templateUrl: 'lumiKillModal.html',
-            controller: 'LumiKillDialogCtrl',
+            templateUrl: 'templates/modalKillLumi.html',
+            controller: 'SimpleDataDialogCtrl',
             scope: $scope,
             resolve: {
                 data: function () {
@@ -240,7 +280,7 @@ dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '
     $scope.LumiCtrl = lumi;
 }]);
 
-dqmApp.controller('LumiKillDialogCtrl', function ($scope, $modalInstance, data) {
+dqmApp.controller('SimpleDataDialogCtrl', function ($scope, $modalInstance, data) {
     $scope.data = data;
 })
 

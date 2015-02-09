@@ -10,10 +10,9 @@ def call(*kargs, **kwargs):
     print "Finished command:", r
 
 def install_local(rpm):
-    call(["sudo", "rm", "-vf", "/usr/local/bin/fff_monitoring.py"])
-    call(["sudo", "rm", "-vf", "/usr/local/bin/fff_monitoring.pyc"])
     call(["sudo", "yum", "-y", "reinstall", rpm])
-    #call(["sudo", "ps", "auxf"])
+    #call(["sudo", "mv", "/tmp/dqm_monitoring/", "/tmp/dqm_monitoring.old/"])
+    #call(["sudo", "/etc/init.d/fff_monitoring", "restart"])
 
 def install_remote(spath, host):
     print "*"*80

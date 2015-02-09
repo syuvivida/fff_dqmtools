@@ -224,7 +224,22 @@ class WebServer(object):
             body = "Process killed, kill exit_code: %d" % r
             return body
 
-    def run_test(self, port=8080):
+        @bottle.route("/utils/drop_run", method=['POST'])
+        def drop_run():
+            from bottle import request
+            data = json.loads(request.body.read())
+            run = int(data["run"])
+
+            # check if id known to us
+            c = self.db.cursor()
+            c.execute("DELETE FROM Monitoring WHERE run = ?", (run, ))
+            doc = c.fetchone()
+            c.close()
+            self.db.commit()
+
+            return "Rows deleted for run%08d!" % run
+
+    def run_test(self, port=9315):
         bottle.run(host="0.0.0.0", port=port, reloader=True)
 
     def run_greenlet(self, host="::0", port=9215, **kwargs):
@@ -247,4 +262,5 @@ if __name__ == "__main__":
     db = sqlite3.connect("./db.sqlite3")
     w = WebServer(db=db)
 
-    w.run_greenlet(port=9315)
+    #w.run_greenlet(port=9315)
+    w.run_test()

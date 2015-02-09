@@ -1,0 +1,20 @@
+<form class="form-inline" autocomplete="on">
+  <div class="modal-header">
+    <h3 class="modal-title">Enter a run number to delete.</h3>
+  </div>
+  <div class="modal-body">
+    <p> Type in the run number you want to drop. You can separate several runs using spaces.</p>
+    <div>
+
+      <div class="form-group">
+        <label for="verify-runs">Run(s)</label>
+        <input type="text" class="form-control" id="verify-runs" name="verify-runs" ng-model="runs" placeholder="200015, 200016" required />
+      </div>
+
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="submit" class="btn btn-primary" ng-disabled="!runs" ng-click="$close({ runs: runs })">OK</button>
+    <button class="btn btn-warning" ng-click="$dismiss('cancel')">Cancel</button>
+  </div>
+</form>
