@@ -1,34 +1,9 @@
 #!/usr/bin/env python
-import logging
 import json
 import sqlite3
 import os, sys, time
 import socket
-
-log = logging.getLogger("root")
-
-#def test():
-#    files = os.listdir("/tmp/dqm_monitoring/")
-#    for f in files:
-#        if not f.endswith(".jsn"): continue
-#
-#        fp = os.path.join("/tmp/dqm_monitoring/", f)
-#        body = json.load(open(fp, "r"))
-#
-#        cur.execute("INSERT OR REPLACE INTO Monitoring (id, timestamp, type, host, tag, run, body) VALUES (?, ?, ?, ?, ?, ?, ?)", (
-#            body.get("_id"),
-#            body.get("timestamp", time.time()),
-#            body.get("type"),
-#            body.get("hostname"),
-#            body.get("tag"),
-#            body.get("run"),
-#            json.dumps(body),
-#        ))
-#
-#    conn.commit()
-#    return conn
-#
-#db = test()
+import logging
 
 import fff_monitoring
 import fff_cluster
@@ -36,15 +11,19 @@ import fff_cluster
 # fff_monitoring fixed the imports for us
 import bottle
 
+
+# global variable to access from fff_filemonitor.py
+instances = []
+
 class WebServer(object):
     def __init__(self, db=None):
-        self.db = db
+        self.db_str = db
+        self.log = logging.getLogger(__name__)
 
-        if isinstance(self.db, basestring):
-            self.db = sqlite3.connect(self.db)
-        elif self.db is None:
-            self.db = sqlite3.connect(":memory:")
-
+        if not self.db_str:
+            self.db_str = ":memory:"
+        
+        self.db = sqlite3.connect(self.db_str)
         self.create_tables()
         self.setup_routes()
 
@@ -256,7 +235,23 @@ class WebServer(object):
 
         app = bottle.default_app()
         server = wsgi.WSGIServer(listener, app, **kwargs)
+
+        self.log.info("Using db: %s." % (self.db_str))
+        self.log.info("Started web server at [%s]:%d" % (host, port))
+        self.log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
+
         server.serve_forever()
+
+def __run__(server, opts):
+    import gevent
+
+    db = opts["db"]
+    port = opts["port"]
+
+    fweb = WebServer(db = db)
+    fw = gevent.spawn(lambda: fweb.run_greenlet(port = port))
+
+    return (fw, fweb, )
 
 if __name__ == "__main__":
     db = sqlite3.connect("./db.sqlite3")

@@ -11,20 +11,7 @@ import time
 import json
 from collections import OrderedDict
 
-def prepare_imports():
-    # minihack
-    sys.path.append('/opt/hltd/python')
-    sys.path.append('/opt/hltd/lib')
-
-    sys.path.append('./env/lib/python2.7/site-packages/inotify/')
-
-    thp = os.path.dirname(__file__)
-    sys.path.append(os.path.join(thp, "./"))
-    sys.path.append(os.path.join(thp, "./lib"))
-
-prepare_imports()
-
-log = logging.getLogger("root")
+import fff_filemonitor
 
 re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
 def parse_file_name(rl):
@@ -35,7 +22,6 @@ def parse_file_name(rl):
     d = m.groupdict()
     sort_key = (int(d["run"]), int(d["runf"]), int(d["ls"]), d["leftover"])
     return sort_key
-
 
 def collect(top):
     # entry format (sort_key, path, size)
@@ -70,21 +56,26 @@ def collect(top):
     collected.sort(key=lambda x: x[0])
     return collected
 
+import fff_monitoring
 
 class FileDeleter(object):
-    def __init__(self, top, thresholds, report_directory, fake=True, log_capture=None, app_tag="fff_deleter"):
+    def __init__(self, top, thresholds, report_directory, log, fake=True, app_tag="fff_deleter"):
         self.top = top
         self.fake = fake
         self.thresholds = thresholds
         self.report_directory = report_directory
         self.sequence = 0
-        self.log_capture = log_capture
         self.app_tag = app_tag
+        self.log = log
+
+        # create the log capture, so we can see our own log
+        self.log_capture = fff_monitoring.LogCaptureHandler()
+        self.log.addHandler(self.log_capture)
 
         self.hostname = socket.gethostname()
 
         if self.fake:
-            log.info("Starting in fake (read only) mode.")
+            self.log.info("Starting in fake (read only) mode.")
 
     def rename(self, f):
         if f.endswith(".deleted"):
@@ -93,10 +84,10 @@ class FileDeleter(object):
         fn = f + ".deleted"
 
         if self.fake:
-            log.warning("Renaming file (fake): %s -> %s", f,
+            self.log.warning("Renaming file (fake): %s -> %s", f,
                 os.path.relpath(fn, os.path.dirname(f)))
         else:
-            log.warning("Renaming file: %s -> %s", f,
+            self.log.warning("Renaming file: %s -> %s", f,
                 os.path.relpath(fn, os.path.dirname(f)))
 
             os.rename(f, fn)
@@ -108,9 +99,9 @@ class FileDeleter(object):
             return f
 
         if self.fake:
-            log.warning("Truncating file (fake): %s", f)
+            self.log.warning("Truncating file (fake): %s", f)
         else:
-            log.warning("Truncating file: %s", f)
+            self.log.warning("Truncating file: %s", f)
             open(f, "w").close()
 
         return f
@@ -129,7 +120,7 @@ class FileDeleter(object):
         used = total - (st.f_bavail * st.f_frsize)
         stopSize = used - float(total * threshold) / 100
 
-        log.info("Using %d (%.02f%%) of %d space, %d (%.02f%%) above %s threshold.",
+        self.log.info("Using %d (%.02f%%) of %d space, %d (%.02f%%) above %s threshold.",
             used, float(used) * 100 / total, total, stopSize, float(stopSize) * 100 / total, type_string)
 
         return stopSize
@@ -137,7 +128,7 @@ class FileDeleter(object):
     def do_the_cleanup(self):
         self.sequence += 1
         if not os.path.isdir(self.top):
-            log.warning("Directory %s does not exists.", self.top)
+            self.log.warning("Directory %s does not exists.", self.top)
             return
 
         stopSizeRename = self.calculate_threshold("rename")
@@ -146,10 +137,10 @@ class FileDeleter(object):
         assert stopSizeRename > stopSizeDelete
 
         # do the action until we reach the target sizd
-        log.info("Started file collection at %s", self.top)
+        self.log.info("Started file collection at %s", self.top)
         start = time.time()
         collected = collect(self.top)
-        log.info("Done file collection, took %.03fs.", time.time() - start)
+        self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
         updated = []
 
@@ -218,7 +209,7 @@ class FileDeleter(object):
 
     def make_report(self, files, logout):
         if not os.path.isdir(self.report_directory):
-            log.warning("Directory %s does not exists. Reports disabled.", self.report_directory)
+            self.log.warning("Directory %s does not exists. Reports disabled.", self.report_directory)
             return
 
         meminfo = list(open("/proc/meminfo", "r").readlines())
@@ -263,19 +254,16 @@ class FileDeleter(object):
         }
 
         fn = doc["_id"]
-        tmp_fp = os.path.join(self.report_directory, "." + fn + ".tmp")
-        final_fp = os.path.join(self.report_directory, fn + ".jsn")
-        fd = open(tmp_fp, "w")
 
-        json.dump(doc, fd, indent=True)
-        fd.write("\n")
-        fd.close()
+        final_fp = os.path.join(self.report_directory, doc["_id"] + ".jsn")
+        body = json.dumps(doc, indent=True)
+        fff_filemonitor.atomic_create_write(final_fp, body)
 
-        os.rename(tmp_fp, final_fp)
-        log.info("Made report file: %s", final_fp)
+        self.log.info("Made report file: %s", final_fp)
 
+    def run_greenlet(self):
+        import gevent
 
-    def run_daemon(self):
         delay_seconds = 30
         while True:
             files = self.do_the_cleanup()
@@ -286,74 +274,23 @@ class FileDeleter(object):
                 log_out = log.strip().split("\n")
 
             self.make_report(files, log_out)
-            time.sleep(delay_seconds)
+            gevent.sleep(delay_seconds)
 
-import sys, os
-if __name__ == "__main__":
-    import fff_daemon
-
-    opt = {}
-    # application tag, used in locking/logging
-    opt["app_tag"] = "fff_deleter"
-    opt["top"] = "/fff/ramdisk"
-    opt["do_foreground"] = False
-    opt["fake_deletes"] = False
-
-    arg = sys.argv[1:]
-    while arg:
-        a = arg.pop(0)
-        if a == "--foreground":
-            opt["do_foreground"] = True
-            continue
-
-        if a == "--fake":
-            opt["fake_deletes"] = True
-            continue
-
-        if a == "--tag":
-            opt["app_tag"] = arg.pop(0)
-            continue
-
-        if a == "--top":
-            opt["top"] = arg.pop(0)
-            continue
-
-        sys.stderr.write("Invalid parameter: %s." % a);
-        sys.stderr.flush()
-        sys.exit(1)
-
-    if not opt["do_foreground"]:
-        # try to take the lock or quit
-        sock = fff_daemon.socket_lock(opt["app_tag"])
-        if sock is None:
-            sys.stderr.write("Already running, tag was %s, exitting.\n" % opt["app_tag"])
-            sys.stderr.flush()
-            sys.exit(1)
-
-        fff_daemon.daemon_detach(
-            "/var/log/%s.log" % opt["app_tag"],
-            "/var/run/%s.pid" % opt["app_tag"])
-
-        args = [sys.executable] + sys.argv + ["--foreground"]
-        os.execv(sys.executable, args)
-
-    log_capture = fff_daemon.daemon_setup_log_capture(log)
-
-    # thresholds rename and delete must be in order
-    # in other words, always: delete > rename
-    # this is because delete only deletes renamed files
+def __run__(self, opts):
+    tag = "fff_deleter"
+    log = logging.getLogger(__name__)
 
     service = FileDeleter(
-        top = opt["top"],
-        app_tag = opt["app_tag"],
+        top = opts["run_ramdisk"],
+        app_tag = tag,
         thresholds = {
             'rename': 60,
             'delete': 80,
         },
-        report_directory = "/tmp/dqm_monitoring/",
-        fake = opt["fake_deletes"],
-        log_capture = log_capture,
+        log = log,
+        report_directory = opts["path"],
+        fake = opts["fake"],
     )
 
-    log.info("Service started, pid is %d.", os.getpid())
-    fff_daemon.daemon_run_supervised(service.run_daemon)
+    import gevent
+    return (gevent.spawn(service.run_greenlet), service, )

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-import sys
-import os
+
+import sys, os, time
 import logging
-import signal, errno, fcntl
+from StringIO import StringIO
 
 def prepare_imports():
     # minihack
@@ -18,36 +18,148 @@ def prepare_imports():
 prepare_imports()
 
 log = logging.getLogger("root")
+log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 
-def run_daemon(opt):
-    import gevent
-    import fff_web
-    import fff_filemonitor
+class LogCaptureHandler(logging.StreamHandler):
+    def __init__(self):
+        self.string_io = StringIO()
+        logging.StreamHandler.__init__(self, self.string_io)
 
-    fweb = fff_web.WebServer(db=opt["db"])
+        self.setLevel(logging.INFO)
+        self.setFormatter(log_format)
 
-    fmon = fff_filemonitor.FileMonitor(
-        path = opt["path"],
-        web_process = fweb,
-    )
+    def retrieve(self):
+        log_out = self.string_io.getvalue()
+        self.string_io.truncate(0)
 
-    fm = gevent.spawn(lambda: fmon.run_greenlet())
-    fw = gevent.spawn(lambda: fweb.run_greenlet(port=opt["port"]))
+        return log_out
+
+    def emit(self, record):
+        logging.StreamHandler.emit(self, record)
+
+        s = self.string_io.tell()
+        # we should never reach more than a meg of output
+        # unless retrieve isn't called
+        if s > 1024:
+            self.string_io.truncate(0)
+            self.string_io.write("\n\n... log was truncated ...\n\n")
+
+class StderrHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+
+        self.setLevel(logging.INFO)
+        self.setFormatter(log_format)
+
+class Server(object):
+    def __init__(self, opt):
+        self.running = {}
+        self.opts = opt
+
+        self.log_handler_capture = LogCaptureHandler()
+        self.log_handler_stderr = StderrHandler()
+
+        self.log_capture = self.log_handler_capture 
+
+    def get_instance(self, name):
+        return self.running.get(name, None)
+
+    def start_applet(self, name):
+        # spawn the logger with the same name
+        alog = logging.getLogger(name)
+        self.config_log(alog)
+
+        mod = __import__(name)
+        r = mod.__run__(self, self.opts)
+
+        self.running[name] = r
+
+    def joinall(self):
+        import gevent
+
+        greenlets = map(lambda x: x[0], self.running.values())
+
+        try:
+            gevent.joinall(greenlets, raise_error=True)
+        except KeyboardInterrupt:
+            return
+
+    def config_log(self, logger):
+        logger.addHandler(self.log_handler_capture)
+        logger.addHandler(self.log_handler_stderr)
+        logger.setLevel(logging.INFO)
+
+    def run(self):
+        applets = self.opts["applets"]
+        log.info("Found applets: %s", applets)
+
+        for applet in applets:
+            self.start_applet(applet)
+
+        srv.joinall()
+
+def detach(logfile, pidfile):
+    # do the double fork
+    pid = os.fork()
+    if pid != 0:
+        sys.exit(0)
+
+    os.setsid()
+
+    fl = open(logfile, "a")
+    os.dup2(fl.fileno(), sys.stdin.fileno())
+    os.dup2(fl.fileno(), sys.stdout.fileno())
+    os.dup2(fl.fileno(), sys.stderr.fileno())
+    fl.close()
+
+    pid = os.fork()
+    if pid != 0:
+        sys.exit(0)
+
+    if pidfile:
+        f = open(pidfile, "w")
+        f.write("%d\n" % os.getpid())
+        f.close()
+
+def run_supervised(f):
+    def clear_fds():
+        try:
+            maxfd = os.sysconf("SC_OPEN_MAX")
+        except (AttributeError, ValueError):
+            maxfd = 1024
+
+        os.closerange(3, maxfd)
 
     try:
-        gevent.joinall([fm, fw], raise_error=True)
-    except KeyboardInterrupt:
-        return
+        f()
+    except:
+        log = logging.getLogger("root")
+        log.warning("Daemon failure, will restart in 15s.:", exc_info=True)
+
+        # wait 30s so we don't restart too often
+        time.sleep(15)
+        clear_fds()
+
+        args = [sys.executable] + sys.argv
+        os.execv(sys.executable, args)
+
 
 if __name__ == "__main__":
-    import fff_daemon
-
     opt = {
         'do_foreground': False,
         'db': "/var/lib/fff_dqmtools/db.sqlite3",
         'path': "/tmp/dqm_monitoring/",
         'port': 9215,
+        'run_ramdisk': "/fff/ramdisk/",
+        'fake': False,
+        'applets': ["fff_web", "fff_filemonitor", "fff_selftest", "fff_logcleaner"],
     }
+
+    import fff_cluster
+
+    c = fff_cluster.get_node()
+    log.info("Found node: %s", c.get("node", "unknown"))
 
     arg = sys.argv[1:]
     while arg:
@@ -68,24 +180,22 @@ if __name__ == "__main__":
             opt["path"] = arg.pop(0)
             continue
 
+        if a == "--applets":
+            opt["applets"] = arg.pop(0).split(",")
+            continue
+
         sys.stderr.write("Invalid parameter: %s." % a);
         sys.stderr.flush()
         sys.exit(1)
 
     if not opt["do_foreground"]:
-        # try to take the lock or quit
-        sock = fff_daemon.socket_lock("fff_monitoring")
-        if sock is None:
-            sys.stderr.write("Already running, exitting.\n")
-            sys.stderr.flush()
-            sys.exit(1)
-
-        fff_daemon.daemon_detach("/var/log/fff_monitoring.log", "/var/run/fff_monitoring.pid")
+        detach("/var/log/fff_monitoring.log", "/var/run/fff_monitoring.pid")
 
         args = [sys.executable] + sys.argv + ["--foreground"]
         os.execv(sys.executable, args)
 
-    log_capture = fff_daemon.daemon_setup_log_capture(log)
+    srv = Server(opt)
+    srv.config_log(log)
 
     log.info("Service started, pid is %d.", os.getpid())
-    fff_daemon.daemon_run_supervised(lambda: run_daemon(opt))
+    run_supervised(srv.run)
