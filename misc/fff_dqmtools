@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#	/etc/rc.d/init.d/fff_monitoring
+#	/etc/rc.d/init.d/fff_dqmtools
 #
-# Init file for fff_monitoring.py
-# Copy it to /etc/rc.d/init.d/fff_monitoring
+# Init file for fff_dqmtools.py
+# Copy it to /etc/rc.d/init.d/fff_dqmtools
 #
 # chkconfig: 345 80 20
 # description: FFF Monitoring daemon for DQM
@@ -11,12 +11,12 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-DAEMON_BIN=/opt/fff_dqmtools/fff_monitoring.py
-PIDFILE=/var/run/fff_monitoring.pid
+DAEMON_BIN=/opt/fff_dqmtools/fff_dqmtools.py
+PIDFILE=/var/run/fff_dqmtools.pid
 RETVAL=0
 
 start() {
-	echo -n $"Starting fff_monitoring daemon: "
+	echo -n $"Starting fff_dqmtools daemon: "
 	daemon $DAEMON_BIN
 	RETVAL=$?
 	echo
@@ -25,7 +25,7 @@ start() {
 }
 
 stop() {
-	echo -n $"Stopping fff_monitoring daemon: "
+	echo -n $"Stopping fff_dqmtools daemon: "
 	killproc -p $PIDFILE
 	RETVAL=$?
 	echo

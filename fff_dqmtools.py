@@ -41,7 +41,7 @@ class LogCaptureHandler(logging.StreamHandler):
         s = self.string_io.tell()
         # we should never reach more than a meg of output
         # unless retrieve isn't called
-        if s > 1024:
+        if s > (1024*1024*16):
             self.string_io.truncate(0)
             self.string_io.write("\n\n... log was truncated ...\n\n")
 
@@ -60,7 +60,7 @@ class Server(object):
         self.log_handler_capture = LogCaptureHandler()
         self.log_handler_stderr = StderrHandler()
 
-        self.log_capture = self.log_handler_capture 
+        self.log_capture = self.log_handler_capture
 
     def get_instance(self, name):
         return self.running.get(name, None)
@@ -148,12 +148,29 @@ def run_supervised(f):
 if __name__ == "__main__":
     opt = {
         'do_foreground': False,
-        'db': "/var/lib/fff_dqmtools/db.sqlite3",
         'path': "/tmp/dqm_monitoring/",
-        'port': 9215,
-        'run_ramdisk': "/fff/ramdisk/",
-        'fake': False,
         'applets': ["fff_web", "fff_filemonitor", "fff_selftest", "fff_logcleaner"],
+
+        "logfile": "/var/log/fff_dqmtools.log",
+        "pidfile": "/var/run/fff_dqmtools.pid",
+
+        "web.db": "/var/lib/fff_dqmtools/db.sqlite3",
+        "web.port": 9215,
+
+        "deleter.ramdisk": "/fff/ramdisk/",
+        "deleter.tag": "fff_deleter",
+        "deleter.fake": False,
+    }
+
+    key_types = {
+        "logfile": str,
+        "pidfile": str,
+
+        "web.port": int,
+        "web.db": str,
+
+        "deleter.ramdisk": str,
+        "deleter.tag": str,
     }
 
     import fff_cluster
@@ -168,14 +185,6 @@ if __name__ == "__main__":
             opt["do_foreground"] = True
             continue
 
-        if a == "--db":
-            opt["db"] = arg.pop(0)
-            continue
-
-        if a == "--port":
-            opt["port"] = int(arg.pop(0))
-            continue
-
         if a == "--path":
             opt["path"] = arg.pop(0)
             continue
@@ -184,12 +193,18 @@ if __name__ == "__main__":
             opt["applets"] = arg.pop(0).split(",")
             continue
 
-        sys.stderr.write("Invalid parameter: %s." % a);
+        if a.startswith("--") and key_types.has_key(a[2:]):
+            key = a[2:]
+            t = key_types[key]
+            opt[key] = t(arg.pop(0))
+            continue
+
+        sys.stderr.write("Invalid parameter: %s.\n" % a);
         sys.stderr.flush()
         sys.exit(1)
 
     if not opt["do_foreground"]:
-        detach("/var/log/fff_monitoring.log", "/var/run/fff_monitoring.pid")
+        detach(opt["logfile"], opt["pidfile"])
 
         args = [sys.executable] + sys.argv + ["--foreground"]
         os.execv(sys.executable, args)

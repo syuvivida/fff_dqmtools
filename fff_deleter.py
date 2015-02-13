@@ -56,7 +56,7 @@ def collect(top):
     collected.sort(key=lambda x: x[0])
     return collected
 
-import fff_monitoring
+import fff_dqmtools
 
 class FileDeleter(object):
     def __init__(self, top, thresholds, report_directory, log, fake=True, app_tag="fff_deleter"):
@@ -67,9 +67,10 @@ class FileDeleter(object):
         self.sequence = 0
         self.app_tag = app_tag
         self.log = log
+        self.delay_seconds = 30
 
         # create the log capture, so we can see our own log
-        self.log_capture = fff_monitoring.LogCaptureHandler()
+        self.log_capture = fff_dqmtools.LogCaptureHandler()
         self.log.addHandler(self.log_capture)
 
         self.hostname = socket.gethostname()
@@ -264,7 +265,6 @@ class FileDeleter(object):
     def run_greenlet(self):
         import gevent
 
-        delay_seconds = 30
         while True:
             files = self.do_the_cleanup()
 
@@ -274,22 +274,21 @@ class FileDeleter(object):
                 log_out = log.strip().split("\n")
 
             self.make_report(files, log_out)
-            gevent.sleep(delay_seconds)
+            gevent.sleep(self.delay_seconds)
 
 def __run__(self, opts):
-    tag = "fff_deleter"
     log = logging.getLogger(__name__)
 
     service = FileDeleter(
-        top = opts["run_ramdisk"],
-        app_tag = tag,
+        top = opts["deleter.ramdisk"],
+        app_tag = opts["deleter.tag"],
         thresholds = {
             'rename': 60,
             'delete': 80,
         },
         log = log,
         report_directory = opts["path"],
-        fake = opts["fake"],
+        fake = opts["deleter.fake"],
     )
 
     import gevent

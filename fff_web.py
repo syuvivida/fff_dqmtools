@@ -5,12 +5,11 @@ import os, sys, time
 import socket
 import logging
 
-import fff_monitoring
+import fff_dqmtools
 import fff_cluster
 
-# fff_monitoring fixed the imports for us
+# fff_dqmtools fixed the imports for us
 import bottle
-
 
 # global variable to access from fff_filemonitor.py
 instances = []
@@ -22,7 +21,7 @@ class WebServer(object):
 
         if not self.db_str:
             self.db_str = ":memory:"
-        
+
         self.db = sqlite3.connect(self.db_str)
         self.create_tables()
         self.setup_routes()
@@ -245,8 +244,8 @@ class WebServer(object):
 def __run__(server, opts):
     import gevent
 
-    db = opts["db"]
-    port = opts["port"]
+    db = opts["web.db"]
+    port = opts["web.port"]
 
     fweb = WebServer(db = db)
     fw = gevent.spawn(lambda: fweb.run_greenlet(port = port))

@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.0.1
+Version: 1.0.2
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -24,7 +24,7 @@ BuildArch: x86_64
 AutoReqProv: no
 Provides:/opt/fff_dqmtools
 Provides:/etc/logrotate.d/fff_dqmtools
-Provides:/etc/init.d/fff_monitoring
+Provides:/etc/init.d/fff_dqmtools
 Requires:python, python-gevent
 %description
 DQM tools for FFF.
@@ -44,7 +44,7 @@ install -m 644 $SCRIPTDIR/lib/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
 cp -r $SCRIPTDIR/static -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 cp -r $SCRIPTDIR/misc -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 
-install -m 755 $SCRIPTDIR/misc/fff_monitoring -t \$RPM_BUILD_ROOT/etc/init.d/
+install -m 755 $SCRIPTDIR/misc/fff_dqmtools -t \$RPM_BUILD_ROOT/etc/init.d/
 #install -m 755 $SCRIPTDIR/misc/fff_deleter -t \$RPM_BUILD_ROOT/etc/init.d/
 install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logrotate.d/fff_dqmtools
 
@@ -53,11 +53,11 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 /opt/fff_dqmtools
 /var/lib/fff_dqmtools
 /etc/logrotate.d/fff_dqmtools
-/etc/init.d/fff_monitoring
+/etc/init.d/fff_dqmtools
 
 %post
-/usr/lib/lsb/install_initd /etc/init.d/fff_monitoring
-/etc/init.d/fff_monitoring restart
+/usr/lib/lsb/install_initd /etc/init.d/fff_dqmtools
+/etc/init.d/fff_dqmtools restart
 EOF
 
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}

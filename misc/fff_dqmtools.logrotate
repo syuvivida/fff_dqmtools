@@ -1,4 +1,4 @@
-/var/log/fff_monitoring.log {
+/var/log/fff_dqmtools.log {
         copytruncate
         hourly
         missingok

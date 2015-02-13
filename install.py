@@ -10,9 +10,15 @@ def call(*kargs, **kwargs):
     print "Finished command:", r
 
 def install_local(rpm):
+    #call(["sudo", "/etc/init.d/fff_monitoring", "stop"])
+    #call(["sudo", "chkconfig", "--del", "fff_monitoring"])
+    #call(["sudo", "rm", "/etc/init.d/fff_monitoring"])
+    #call(["sudo", "rm", "/var/run/fff_monitoring.pid"])
+    #call(["sudo ls -la /var/run/fff_*"], shell=True)
+    #call(["sudo ps aux | grep fff_"], shell=True)
+    #call(["sudo rm /opt/fff_dqmtools/fff_monitoring.*"], shell=True)
     call(["sudo", "yum", "-y", "reinstall", rpm])
-    #call(["sudo", "mv", "/tmp/dqm_monitoring/", "/tmp/dqm_monitoring.old/"])
-    #call(["sudo", "/etc/init.d/fff_monitoring", "restart"])
+    #call(["sudo", "chkconfig", "fff_dqmtools", "on"])
 
 def install_remote(spath, host):
     print "*"*80
@@ -41,11 +47,17 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--local":
         sys.exit(install_local(rpm))
     elif len(sys.argv) > 1 and sys.argv[1] == "--remote":
-        import fff_cluster
-        x = fff_cluster.get_node()
-        for label, hosts in x["_all"].items():
-            for host in hosts:
-                install_remote(spath, host)
+        if len(sys.argv) > 2:
+            hosts = sys.argv[2:]
+        else:
+            import fff_cluster
+            for k, hosts in fff_cluster.get_node()["_all"].items():
+                print k + ":", " ".join(hosts)
+
+            sys.exit(1)
+
+        for host in hosts:
+            install_remote(spath, host)
     else:
         print "Please provide either --local or --remote"
 
