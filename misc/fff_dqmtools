@@ -11,13 +11,18 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
+# edit these for special stuff (fff_deleter, ...)
 DAEMON_BIN=/opt/fff_dqmtools/fff_dqmtools.py
+DAEMON_ARGS=
 PIDFILE=/var/run/fff_dqmtools.pid
+LOGFILE=/var/log/fff_dqmtools.log
+NAME=fff_dqmtools
+
 RETVAL=0
 
 start() {
-	echo -n $"Starting fff_dqmtools daemon: "
-	daemon $DAEMON_BIN
+	echo -n "Starting $NAME daemon: "
+	daemon --pidfile $PIDFILE $DAEMON_BIN --pidfile $PIDFILE --logfile $LOGFILE $DAEMON_ARGS
 	RETVAL=$?
 	echo
 
@@ -25,7 +30,7 @@ start() {
 }
 
 stop() {
-	echo -n $"Stopping fff_dqmtools daemon: "
+	echo -n "Stopping $NAME daemon: "
 	killproc -p $PIDFILE
 	RETVAL=$?
 	echo

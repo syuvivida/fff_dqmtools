@@ -54,24 +54,18 @@ class WebServer(object):
         self.db.commit()
         cur.close()
 
-    def direct_upload(self, document, json_doc=None):
-        cur = self.db.cursor()
-
-        if json_doc is None:
-            json_doc = json.dumps(document)
-
-        cur.execute("INSERT OR REPLACE INTO Monitoring (id, timestamp, type, host, tag, run, body) VALUES (?, ?, ?, ?, ?, ?, ?)", (
-            document.get("_id"),
-            document.get("timestamp", time.time()),
-            document.get("type"),
-            document.get("hostname"),
-            document.get("tag"),
-            document.get("run"),
-            json_doc,
-        ))
-
-        self.db.commit()
-        cur.close()
+    def direct_transactional_upload(self, bodydoc_generator):
+        with self.db as db:
+            for (body, doc, ) in bodydoc_generator:
+                db.execute("INSERT OR REPLACE INTO Monitoring (id, timestamp, type, host, tag, run, body) VALUES (?, ?, ?, ?, ?, ?, ?)", (
+                    doc.get("_id"),
+                    doc.get("timestamp", time.time()),
+                    doc.get("type"),
+                    doc.get("hostname"),
+                    doc.get("tag"),
+                    doc.get("run"),
+                    body,
+                ))
 
     def setup_routes(self):
         static_path = os.path.dirname(__file__)

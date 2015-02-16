@@ -102,33 +102,37 @@ class FileMonitor(object):
         else:
             self.log.info("Mountpoint not found and we can't mount.")
 
-    def upload_file(self, fp):
-        self.log.info("Uploading: %s", fp)
-
-        try:
-            json_text = atomic_read_delete(fp)
-            document = json.loads(json_text)
-
-            r = self.server.get_instance('fff_web')
-            if r:
-                fweb = r[1]
-                fweb.direct_upload(document, json_doc=json_text)
-            else:
-                raise Exception("fff_web is not running, can't inject.")
-        except:
-            self.log.warning("Failure to upload the document: %s", fp, exc_info=True)
-            #raise Exception("Please restart.")
-
-    def process_dir(self):
+    def scan_dir(self):
         lst = os.listdir(self.path)
         for f in lst:
             fp = os.path.join(self.path, f)
 
             fname = os.path.basename(fp)
-            if fname.startswith("."): return
-            if not fname.endswith(".jsn"): return
+            if fname.startswith("."): continue
+            if not fname.endswith(".jsn"): continue
 
-            self.upload_file(fp)
+            self.log.info("Uploading: %s", fp)
+            try:
+                json_text = atomic_read_delete(fp)
+                document = json.loads(json_text)
+
+                # this is defined by fff_web.direct_transactional_upload
+                yield (json_text, document, )
+            except:
+                self.log.warning("Failure to upload the document: %s", fp, exc_info=True)
+                #raise Exception("Please restart.")
+
+    def process_dir(self):
+        # now upload
+        r = self.server.get_instance('fff_web')
+        if not r:
+            raise Exception("fff_web is not running, can't inject.")
+
+        # this will scan the directory and emit entries
+        bodydoc_generator = self.scan_dir()
+
+        fweb = r[1]
+        fweb.direct_transactional_upload(bodydoc_generator)
 
     def run_greenlet(self):
         import gevent.select
