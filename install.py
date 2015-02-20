@@ -16,7 +16,7 @@ def install_local(rpm):
     #call(["sudo", "rm", "/var/run/fff_monitoring.pid"])
     #call(["sudo ls -la /var/run/fff_*"], shell=True)
     #call(["sudo ps aux | grep fff_"], shell=True)
-    #call(["sudo rm /opt/fff_dqmtools/fff_monitoring.*"], shell=True)
+    #call(["ps aux | grep fff_dqm"], shell=True)
     call(["sudo", "yum", "-y", "reinstall", rpm])
     #call(["sudo", "chkconfig", "fff_dqmtools", "on"])
 

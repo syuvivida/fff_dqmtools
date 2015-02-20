@@ -55,7 +55,10 @@
                     <li ng-repeat="(k,v) in ClusterCtrl.info_data.cluster._all">
                       <a>{{ k }}:</a>
                       <ul class="nodes">
-                        <li ng-repeat="host in v"><a ng-href="http://{{ host }}:9215/">{{ host }}</a></li>
+                        <li ng-repeat="host in v">
+                          <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
+                          <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
+                        </li>
                       </ul>
                     </li>
                   </ul>
