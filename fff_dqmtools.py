@@ -2,6 +2,8 @@
 
 import sys, os, time
 import logging
+import multiprocessing
+
 from StringIO import StringIO
 
 def prepare_imports():
@@ -21,29 +23,24 @@ log = logging.getLogger("root")
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 
-class LogCaptureHandler(logging.StreamHandler):
+import collections
+
+class LogCaptureHandler(logging.Handler):
     def __init__(self):
-        self.string_io = StringIO()
-        logging.StreamHandler.__init__(self, self.string_io)
+        logging.Handler.__init__(self)
 
         self.setLevel(logging.INFO)
         self.setFormatter(log_format)
 
-    def retrieve(self):
-        log_out = self.string_io.getvalue()
-        self.string_io.truncate(0)
+        self.buffer = collections.deque(maxlen=15*1024)
 
-        return log_out
+    def retrieve(self):
+        return "\n".join(self.buffer)
 
     def emit(self, record):
-        logging.StreamHandler.emit(self, record)
-
-        s = self.string_io.tell()
-        # we should never reach more than a meg of output
-        # unless retrieve isn't called
-        if s > (1024*1024*16):
-            self.string_io.truncate(0)
-            self.string_io.write("\n\n... log was truncated ...\n\n")
+        #logging.StreamHandler.emit(self, record)
+        msg = self.format(record)
+        self.buffer.append(msg)
 
 class StderrHandler(logging.StreamHandler):
     def __init__(self):

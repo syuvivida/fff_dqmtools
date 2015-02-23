@@ -47,9 +47,9 @@ class FFFMonitoringTest():
         meminfo = dict(map(entry_to_dict, meminfo))
         doc["extra"]["meminfo"] = meminfo
 
-        p = subprocess.Popen(["df", "-hP"], stdout=subprocess.PIPE)
-        doc["extra"]["df"] = p.communicate()[0]
-        del p
+        #p = subprocess.Popen(["df", "-hP"], stdout=subprocess.PIPE)
+        #doc["extra"]["df"] = p.communicate()[0]
+        #del p
 
         doc["memory_used"] = (meminfo["MemTotal"] - meminfo["MemFree"]) * 1024
         doc["memory_free"] = meminfo["MemFree"] * 1024
