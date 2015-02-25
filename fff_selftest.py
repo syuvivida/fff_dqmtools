@@ -7,6 +7,8 @@ import time
 import subprocess
 import json
 import logging
+
+import fff_dqmtools
 import fff_filemonitor
 
 log = logging.getLogger(__name__)
@@ -74,11 +76,13 @@ class FFFMonitoringTest():
 
             gevent.sleep(60)
 
-def __run__(server, opts):
-    import gevent
+# no wrappers, it runs in the main/supervisor process
+def __run__(opts, **kwargs):
+    global log
+    log = kwargs["logger"]
 
-    f = FFFMonitoringTest(path = opts["path"], server = server)
-    return (gevent.spawn(f.run_greenlet), f, )
+    f = FFFMonitoringTest(path = opts["path"], server = None)
+    f.run_greenlet()
 
 if __name__ == "__main__":
     x = FFFMonitoringTest(path="./")

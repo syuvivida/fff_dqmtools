@@ -57,7 +57,8 @@
               {{ hit.exit_code }}
             </span>
             <span ng-show="hit.exit_code == undefined">
-              <button type="button" ng-click="LumiCtrl.openKillDialog(hit)" class="btn btn-default btn-xs btn-success">kill</button>
+              <button ng-show="dqm_number == 3 "type="button" ng-click="LumiCtrl.openKillDialog(hit)" class="btn btn-default btn-xs btn-success">kill</button>
+              <span ng-show="dqm_number != 3">running</span>
             </span>
           </td>
           <td> {{ hit.pid }} </td>

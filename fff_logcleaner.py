@@ -64,22 +64,24 @@ def do_the_log_cleanup(fake=False, running_set=None):
 
     return len(files)
 
-def __run__(server, opts):
-    import gevent
+import fff_dqmtools
 
-    def run_greenlet():
-        while True:
-            try:
-                start = time.time()
-                files = do_the_log_cleanup()
-                took = time.time() - start
-                log.info("Log cleaner finished, checked %d files, took %.02f seconds.", files, took)
-            except:
-                log.warning("Log cleaner crashed!", exc_info=True)
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    global log
+    log = kwargs["logger"]
 
-            gevent.sleep(150)
+    while True:
+        try:
+            start = time.time()
+            files = do_the_log_cleanup()
+            took = time.time() - start
+            log.info("Log cleaner finished, checked %d files, took %.02f seconds.", files, took)
+        except:
+            log.warning("Log cleaner crashed!", exc_info=True)
 
-    return (gevent.spawn(run_greenlet),  )
+        time.sleep(150)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

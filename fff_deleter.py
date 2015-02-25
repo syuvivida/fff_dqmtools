@@ -11,7 +11,9 @@ import time
 import json
 from collections import OrderedDict
 
+import fff_dqmtools
 import fff_filemonitor
+import fff_cluster
 
 re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
 def parse_file_name(rl):
@@ -23,7 +25,7 @@ def parse_file_name(rl):
     sort_key = (int(d["run"]), int(d["runf"]), int(d["ls"]), d["leftover"])
     return sort_key
 
-def collect(top):
+def collect(top, parse_func):
     # entry format (sort_key, path, size)
     collected = []
 
@@ -41,7 +43,7 @@ def collect(top):
             fp = os.path.join(root, name)
             rl = os.path.join(root_rl, name)
 
-            sort_key = parse_file_name(rl)
+            sort_key = parse_func(rl)
             if sort_key:
                 stat = os.stat(fp)
                 fsize = stat.st_size
@@ -49,14 +51,11 @@ def collect(top):
                 if fsize == 0:
                     continue
 
-                sort_key = parse_file_name(rl)
                 collected.append((sort_key, fp, fsize, ftime, ))
 
     # for now just use simple sort
     collected.sort(key=lambda x: x[0])
     return collected
-
-import fff_dqmtools
 
 class FileDeleter(object):
     def __init__(self, top, thresholds, report_directory, log, fake=True, app_tag="fff_deleter"):
@@ -68,10 +67,6 @@ class FileDeleter(object):
         self.app_tag = app_tag
         self.log = log
         self.delay_seconds = 30
-
-        # create the log capture, so we can see our own log
-        self.log_capture = fff_dqmtools.LogCaptureHandler()
-        self.log.addHandler(self.log_capture)
 
         self.hostname = socket.gethostname()
 
@@ -140,7 +135,7 @@ class FileDeleter(object):
         # do the action until we reach the target sizd
         self.log.info("Started file collection at %s", self.top)
         start = time.time()
-        collected = collect(self.top)
+        collected = collect(self.top, parse_file_name)
         self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
         updated = []
@@ -208,17 +203,10 @@ class FileDeleter(object):
 
         return runs
 
-    def make_report(self, files, logout):
+    def make_report(self, files):
         if not os.path.isdir(self.report_directory):
             self.log.warning("Directory %s does not exists. Reports disabled.", self.report_directory)
             return
-
-        meminfo = list(open("/proc/meminfo", "r").readlines())
-        def entry_to_dict(line):
-            key, value = line.split()[:2]
-            value = int(value)
-            return (key.strip(":"), value, )
-        meminfo = dict(map(entry_to_dict, meminfo))
 
         # calculate the disk usage
         if os.path.isdir(self.top):
@@ -236,25 +224,18 @@ class FileDeleter(object):
 
         doc = {
             "sequence": self.sequence,
-            "memory_used": (meminfo["MemTotal"] - meminfo["MemFree"]) * 1024,
-            "memory_free": meminfo["MemFree"] * 1024,
-            "memory_total": meminfo["MemTotal"] * 1024,
             "disk_used": used,
             "disk_free": free,
             "disk_total": total,
             "hostname": self.hostname,
             "tag": self.app_tag,
             "extra": {
-                "meminfo": meminfo,
-                "stdlog": logout,
                 "files_seen": collected,
             },
             "pid": os.getpid(),
             "_id": "dqm-diskspace-%s-%s" % (self.hostname, self.app_tag, ),
             "type": "dqm-diskspace"
         }
-
-        fn = doc["_id"]
 
         final_fp = os.path.join(self.report_directory, doc["_id"] + ".jsn")
         body = json.dumps(doc, indent=True)
@@ -268,16 +249,14 @@ class FileDeleter(object):
         while True:
             files = self.do_the_cleanup()
 
-            log_out = None
-            if self.log_capture is not None:
-                log = self.log_capture.retrieve()
-                log_out = log.strip().split("\n")
-
-            self.make_report(files, log_out)
+            self.make_report(files)
             gevent.sleep(self.delay_seconds)
 
-def __run__(self, opts):
-    log = logging.getLogger(__name__)
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    log = kwargs["logger"]
 
     service = FileDeleter(
         top = opts["deleter.ramdisk"],
@@ -291,5 +270,4 @@ def __run__(self, opts):
         fake = opts["deleter.fake"],
     )
 
-    import gevent
-    return (gevent.spawn(service.run_greenlet), service, )
+    service.run_greenlet()

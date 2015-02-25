@@ -1,8 +1,13 @@
+import fff_dqmtools
+import fff_cluster
 import fff_deleter
 import logging
 
-def __run__(self, opts):
-    log = logging.getLogger(__name__)
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    log = kwargs["logger"]
 
     ramdisk = "/fff/output/transfer/"
     tag = "fff_deleter_transfer"
@@ -20,5 +25,4 @@ def __run__(self, opts):
     )
     service.delay_seconds = 15*60
 
-    import gevent
-    return (gevent.spawn(service.run_greenlet), service, )
+    service.run_greenlet()

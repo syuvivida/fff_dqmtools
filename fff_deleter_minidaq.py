@@ -1,8 +1,13 @@
+import fff_dqmtools
 import fff_deleter
+import fff_cluster
 import logging
 
-def __run__(self, opts):
-    log = logging.getLogger(__name__)
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    log = kwargs["logger"]
 
     ramdisk = "/dqmminidaq/"
     tag = "fff_deleter_minidaq"
@@ -19,6 +24,4 @@ def __run__(self, opts):
         fake = opts["deleter.fake"],
     )
     service.delay_seconds = 15*60
-
-    import gevent
-    return (gevent.spawn(service.run_greenlet), service, )
+    service.run_greenlet()

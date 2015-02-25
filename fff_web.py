@@ -7,17 +7,16 @@ import logging
 
 import fff_dqmtools
 import fff_cluster
+import fff_filemonitor
 
 # fff_dqmtools fixed the imports for us
 import bottle
 
-# global variable to access from fff_filemonitor.py
-instances = []
+log = logging.getLogger(__name__)
 
 class WebServer(object):
     def __init__(self, db=None):
         self.db_str = db
-        self.log = logging.getLogger(__name__)
 
         if not self.db_str:
             self.db_str = ":memory:"
@@ -229,24 +228,41 @@ class WebServer(object):
         app = bottle.default_app()
         server = wsgi.WSGIServer(listener, app, **kwargs)
 
-        self.log.info("Using db: %s." % (self.db_str))
-        self.log.info("Started web server at [%s]:%d" % (host, port))
-        self.log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
+        log.info("Using db: %s." % (self.db_str))
+        log.info("Started web server at [%s]:%d" % (host, port))
+        log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
 
         server.serve_forever()
 
-def __run__(server, opts):
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    global log
+    log = kwargs["logger"]
+
     import gevent
 
     db = opts["web.db"]
     port = opts["web.port"]
+    path = opts["path"]
+
+    # create logger for file monitor
+    fweb_logger = logging.getLogger("fff_web")
+    fmon_logger = logging.getLogger("fff_filemonitor")
+    fmon_logger.setLevel(fweb_logger.level)
+    for h in fweb_logger.handlers:
+        fmon_logger.addHandler(h)
 
     fweb = WebServer(db = db)
-    fw = gevent.spawn(lambda: fweb.run_greenlet(port = port))
+    fmon = fff_filemonitor.FileMonitor(path = path, fweb = fweb)
 
-    return (fw, fweb, )
+    fwt = gevent.spawn(lambda: fweb.run_greenlet(port = port))
+    fmt = gevent.spawn(lambda: fmon.run_greenlet())
+
+    gevent.joinall([fwt, fmt], raise_error=True)
 
 if __name__ == "__main__":
+    print "unrecable"
     db = sqlite3.connect("./db.sqlite3")
     w = WebServer(db=db)
 

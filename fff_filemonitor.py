@@ -62,9 +62,9 @@ def atomic_create_write(fp, body):
     os.rename(tmp_fp, fp)
 
 class FileMonitor(object):
-    def __init__(self, path, server):
+    def __init__(self, path, fweb=None):
         self.path = path
-        self.server = server
+        self.fweb = fweb
         self.log = logging.getLogger(__name__)
 
         try:
@@ -124,17 +124,17 @@ class FileMonitor(object):
 
     def process_dir(self):
         # now upload
-        r = self.server.get_instance('fff_web')
-        if not r:
+        if not self.fweb:
             raise Exception("fff_web is not running, can't inject.")
 
         # this will scan the directory and emit entries
         bodydoc_generator = self.scan_dir()
 
-        fweb = r[1]
-        fweb.direct_transactional_upload(bodydoc_generator)
+        self.fweb.direct_transactional_upload(bodydoc_generator)
 
     def run_greenlet(self):
+        self.process_dir()
+
         import gevent.select
         import _inotify as inotify
         import watcher
@@ -162,18 +162,3 @@ class FileMonitor(object):
             else:
                 self.log.warning("bad return from select: %s", str(r))
 
-def __run__(server, opts):
-    import gevent
-
-    fmon = FileMonitor(
-        path = opts["path"],
-        server = server,
-    )
-
-    return (gevent.spawn(fmon.run_greenlet), fmon, )
-
-if __name__ == "__main__":
-    fmon = FileMonitor(
-        path = "/tmp/dqm_monitoring/",
-    )
-    fmon.create_greenlet()
