@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
 BUILDDIR="$SCRIPTDIR/tmp/"
 
 echo "Our directory: $SCRIPTDIR"
@@ -34,18 +34,22 @@ DQM tools for FFF.
 
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib
-mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/static
+mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/utils
+mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets
+mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/web.static
 mkdir -p \$RPM_BUILD_ROOT/etc/logrotate.d
 mkdir -p \$RPM_BUILD_ROOT/etc/init.d
 mkdir -p \$RPM_BUILD_ROOT/var/lib/fff_dqmtools
 
 install -m 755 $SCRIPTDIR/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 install -m 644 $SCRIPTDIR/lib/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
-cp -r $SCRIPTDIR/static -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
+install -m 644 $SCRIPTDIR/applets/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets/
+
 cp -r $SCRIPTDIR/misc -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
+cp -r $SCRIPTDIR/utils -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
+cp -r $SCRIPTDIR/web.static -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 
 install -m 755 $SCRIPTDIR/misc/fff_dqmtools -t \$RPM_BUILD_ROOT/etc/init.d/
-#install -m 755 $SCRIPTDIR/misc/fff_deleter -t \$RPM_BUILD_ROOT/etc/init.d/
 install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logrotate.d/fff_dqmtools
 
 %files
@@ -58,6 +62,8 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 %post
 /usr/lib/lsb/install_initd /etc/init.d/fff_dqmtools
 /etc/init.d/fff_dqmtools restart
+
+%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 EOF
 
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}

@@ -252,8 +252,8 @@ class FileDeleter(object):
             self.make_report(files)
             gevent.sleep(self.delay_seconds)
 
-@fff_dqmtools.fork_wrapper(__name__)
 @fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+@fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
 def __run__(opts, **kwargs):
     log = kwargs["logger"]

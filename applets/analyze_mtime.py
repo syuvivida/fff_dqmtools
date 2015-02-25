@@ -132,12 +132,12 @@ class Analyzer(object):
 
             time.sleep(105)
 
-@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-02"])
+@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
 @fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
-def __run__(opts, **kwargs):
+def __run__(opts, logger, **kwargs):
     global log
-    log = kwargs["logger"]
+    log = logger
 
     s = Analyzer(
         top = "/fff/ramdisk/",

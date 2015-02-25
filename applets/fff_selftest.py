@@ -13,7 +13,7 @@ import fff_filemonitor
 
 log = logging.getLogger(__name__)
 
-class FFFMonitoringTest():
+class FFFMonitoringTest(object):
     def __init__(self, path, server=None):
         hostname = socket.gethostname()
 

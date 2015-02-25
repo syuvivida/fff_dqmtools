@@ -97,8 +97,16 @@ class Server(object):
             # spawn the logger with the same name
             logger = self.config_log(applet)
 
-            mod = __import__(applet)
-            kwargs = { "opts": self.opts, "logger": logger, "name": applet }
+            module_name = "applets." + applet
+            _mod_package = __import__(module_name)
+            mod = getattr(_mod_package, applet)
+
+            kwargs = {
+                "opts": self.opts,
+                "logger": logger,
+                "name": applet,
+                "module_name": module_name,
+            }
             greenlets.append(gevent.spawn(mod.__run__, **kwargs))
 
             # a small delay
@@ -227,27 +235,31 @@ def fork_wrapper_decorate(func, module_name):
     ## first check if we are in a child
     if module_name == "__main__" and os.getenv("FFF_DQMTOOLS_CHILD") is not None:
         # we are, prepare some stuff first
-        module_name = os.getenv("FFF_DQMTOOLS_CHILD")
-        opts = json.loads(os.getenv("FFF_DQMTOOLS_OPTS"))
+        kwargs = json.loads(os.getenv("FFF_DQMTOOLS_CHILD"))
 
         # prepare logging for the applet
-        logger = LogCaptureHandler.create_logger_subprocess(module_name)
-        logger.info("Synchronized process %s", module_name)
+        logger = LogCaptureHandler.create_logger_subprocess(kwargs["name"])
+        logger.info("Synchronized process %d", os.getpid())
+        kwargs["logger"] = logger
 
         # just run the function and exit
-        kwargs = { "opts": opts, "logger": logger, "name": module_name }
         ret = func(**kwargs)
 
         sys.exit(ret)
         # os._exit(-1)
     else:
-        def execute_loop(opts, **kwargs):
+        def execute_loop(**kwargs):
             # get the logger, it is set up by Server()
             logger = kwargs["logger"]
 
+            kwopts = {
+                "opts": kwargs["opts"],
+                "name": kwargs["name"],
+                "module_name": module_name,
+            };
+
             env = {}
-            env["FFF_DQMTOOLS_CHILD"] = module_name
-            env["FFF_DQMTOOLS_OPTS"] = json.dumps(opts)
+            env["FFF_DQMTOOLS_CHILD"] = json.dumps(kwopts)
 
             while True:
                 ec = _execute_module(module_name, logger, env)

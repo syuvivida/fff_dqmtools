@@ -68,7 +68,7 @@ class WebServer(object):
 
     def setup_routes(self):
         static_path = os.path.dirname(__file__)
-        static_path = os.path.join(static_path, "./static/")
+        static_path = os.path.join(static_path, "../web.static/")
 
         @bottle.route('/static/<filepath:path>')
         def static(filepath):
