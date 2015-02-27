@@ -228,8 +228,8 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$location', '$routeParams', 'Dynami
 		}
 
 		var ci = _.indexOf(me.runs, me.current_run);
-		me.previous_run = fi(ci - 1);
-		me.next_run = fi(ci + 1);
+		me.previous_run = fi(ci + 1);
+		me.next_run = fi(ci - 1);
     });
 
     $scope.$on("$destroy", function () {

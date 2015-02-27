@@ -48,7 +48,7 @@ def host_wrapper(allow = []):
             log.info("The %s applet is not allowed to run on %s, disabling", name, host)
             return None
 
-        return noop 
+        return noop
 
     if host in allow:
         return run_wrapper

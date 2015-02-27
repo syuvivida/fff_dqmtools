@@ -19,6 +19,13 @@ def prepare_imports():
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
 
+    # bytecode only creates problems with distribution
+    # and we don't benefit much from the performance gain anyway
+
+    if not os.environ.has_key("PYTHONDONTWRITEBYTECODE"):
+        os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+        sys.dont_write_bytecode = True
+
 prepare_imports()
 
 # calculate installation key, used in locking
@@ -26,7 +33,6 @@ __ipath__ = os.path.dirname(os.path.realpath(__file__))
 __ipkey__ = hashlib.sha1(__ipath__).hexdigest()[:8]
 
 log = logging.getLogger(__name__)
-
 
 class LogCaptureHandler(logging.StreamHandler):
     """
@@ -389,7 +395,6 @@ if __name__ == "__main__":
     }
 
     import fff_cluster
-
     c = fff_cluster.get_node()
 
     arg = sys.argv[1:]
