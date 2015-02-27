@@ -62,10 +62,10 @@ def atomic_create_write(fp, body):
     os.rename(tmp_fp, fp)
 
 class FileMonitor(object):
-    def __init__(self, path, fweb=None):
+    def __init__(self, path, log, fweb=None):
         self.path = path
         self.fweb = fweb
-        self.log = logging.getLogger(__name__)
+        self.log = log
 
         try:
             os.makedirs(self.path)

@@ -6,6 +6,8 @@ import gevent, subprocess, signal, socket
 import collections
 import hashlib
 
+import pwd, grp
+
 def prepare_imports():
     # minihack
     sys.path.append('/opt/hltd/python')
@@ -145,6 +147,21 @@ def lock_wrapper(f):
 
     return wrapper
 
+def setuid(uid, gid):
+    try:
+        if isinstance(uid, basestring):
+            uid = pwd.getpwnam(uid).pw_uid
+
+        if isinstance(gid, basestring):
+            gid = grp.getgrnam(gid).gr_gid
+
+        os.setgid(gid)
+        os.setuid(uid)
+    except Exception as e:
+        print e
+        sys.stderr.write("Can't set the uid/gid: %s\n" % str(e))
+        sys.stderr.flush()
+
 def _select_readlines(fd):
     import gevent.select as select
     import fcntl
@@ -174,7 +191,7 @@ def _select_readlines(fd):
             while len(lbuf) > 1:
                 yield lbuf.pop(0) + "\n"
 
-def _execute_module(module_name, logger, append_environ):
+def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     # find the interpreter and the config file
     args = [sys.executable, "-m", module_name]
 
@@ -187,11 +204,17 @@ def _execute_module(module_name, logger, append_environ):
     logger.info("Spawning process with args: %s", repr(args))
 
     def preexec():
+        # setting setuid clears PR_SET_PDEATHSIG
+        # so do it before setting it
+        if wrapper_kwargs.has_key('uid'):
+            setuid(wrapper_kwargs["uid"], wrapper_kwargs["gid"])
+
         # ensure the child dies if we are SIGKILLED
         import ctypes
         libc = ctypes.CDLL("libc.so.6")
         PR_SET_PDEATHSIG = 1
         libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+
 
     proc = subprocess.Popen(args,
         shell = False,
@@ -217,7 +240,7 @@ def _execute_module(module_name, logger, append_environ):
     finally:
         proc.stdout.close()
 
-def fork_wrapper_decorate(func, module_name):
+def fork_wrapper_decorate(func, module_name, **wrapper_kwargs):
     # this function (decorator) has two entries:
     # 1. then the applet is declared (but not launched).
     # in this case we return a wrapper function which will:
@@ -241,6 +264,12 @@ def fork_wrapper_decorate(func, module_name):
         logger = LogCaptureHandler.create_logger_subprocess(kwargs["name"])
         logger.info("Synchronized process %d", os.getpid())
         kwargs["logger"] = logger
+        kwargs["fork"] = True
+
+        # check for setuid
+        if wrapper_kwargs.has_key("uid"):
+            name = pwd.getpwuid(os.getuid())[0]
+            logger.info("Running as uid=%s(%s) gid=%s groups=(%s)", os.getuid(), name, os.getgid(), os.getgroups())
 
         # just run the function and exit
         ret = func(**kwargs)
@@ -262,7 +291,7 @@ def fork_wrapper_decorate(func, module_name):
             env["FFF_DQMTOOLS_CHILD"] = json.dumps(kwopts)
 
             while True:
-                ec = _execute_module(module_name, logger, env)
+                ec = _execute_module(module_name, logger, env, **wrapper_kwargs)
                 if ec == 0:
                     logger.info("Process %s exitted, error code: %d", module_name, ec)
                     break
@@ -274,8 +303,8 @@ def fork_wrapper_decorate(func, module_name):
         # we have to return a function a new function
         return execute_loop
 
-def fork_wrapper(name):
-    return lambda f: fork_wrapper_decorate(f, name)
+def fork_wrapper(name, **wrapper_kwargs):
+    return lambda f: fork_wrapper_decorate(f, name, **wrapper_kwargs)
 
 def detach(logfile, pidfile):
     # do the double fork
@@ -329,6 +358,7 @@ if __name__ == "__main__":
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner",
         "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq",
+        "analyze_mtime",
     ]
 
     opt = {

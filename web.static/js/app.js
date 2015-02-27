@@ -1,6 +1,59 @@
 var dqmApp = angular.module('dqmApp', ['ngRoute', 'ui.bootstrap']);
 
-dqmApp.controller('NavigationController', [
+dqmApp.controller('AlertCtrl', ['$scope', '$window', function ($scope, $window) {
+    this.alerts = [];
+
+    this.addAlert = function(body) {
+        this.alerts.push(body);
+        $window.scrollTo(0, 0);
+    };
+
+    this.closeAlert = function(index) {
+        this.alerts.splice(index, 1);
+    };
+}]);
+
+dqmApp.controller('ParamsCtrl', ["$scope", "$window", "$location", function ($scope, $window, $location) {
+    var me = this;
+
+    this.params = {};
+    this._params = {};
+
+    this.setKey = function (k, v) {
+        $location.search(k, v);
+    };
+
+    this.update = function () {
+        var s = $location.search();
+
+        this.params = {};
+        this._params = {};
+
+        _.each(s, function (v, k) {
+            //console.log("New param:", k, v);
+            this.params[k] = v;
+            this._params[k] = v;
+        }, this);
+    };
+
+    this.navigate = function () {
+        _.each(this.params, function (v, k) {
+            var old = this._params[k];
+            if (old !== v) {
+                //console.log("setting", k, v);
+                this.setKey(k, v);
+            };
+        }, this);
+    };
+
+    this.update();
+
+    $scope.$on("$locationChangeSuccess", function (event) {
+        me.update();
+    });
+}]);
+
+dqmApp.controller('NavigationCtrl', [
     '$scope', '$window', '$location', '$route', '$http', 'DynamicQuery',
     function($scope, $window, $location, $route, $http, DynamicQuery) {
 
@@ -10,7 +63,7 @@ dqmApp.controller('NavigationController', [
         $location.path("/" + str);
     };
 
-    $scope.NavigationController = {};
+    $scope.NavigationCtrl = {};
     $scope.DynamicQuery = DynamicQuery;
     $scope.dqm_number = 2;
 
@@ -27,22 +80,12 @@ dqmApp.controller('NavigationController', [
         return c;
     };
 
-    $scope.alerts = [];
-
-    $scope.addAlert = function(body) {
-        $scope.alerts.push(body);
-        $window.scrollTo(0, 0);
-    };
-    $scope.closeAlert = function(index) {
-        $scope.alerts.splice(index, 1);
-    };
-
     $scope.$watch(function () { return $http.pendingRequests.length; }, function (v) {
-        $scope.NavigationController.http_count = v;
-        $scope.NavigationController.http_state = v?"busy":"ready";
+        $scope.NavigationCtrl.http_count = v;
+        $scope.NavigationCtrl.http_state = v?"busy":"ready";
     });
 
-    $scope.$watch('NavigationController.search_interval', function (x) {
+    $scope.$watch('ParamsCtrl.params.search_interval', function (x) {
         DynamicQuery.start(x);
     });
 }]);
@@ -93,9 +136,9 @@ dqmApp.controller('DeleteCtrl', ['$scope', '$http', '$modal', '$window', functio
         var p = $http.post("/utils/drop_run", body);
         
         p.then(function (resp) {
-            $scope.addAlert({ type: 'success', strong: rs + "Success!", msg: resp.data });
+            $scope.AlertCtrl.addAlert({ type: 'success', strong: rs + "Success!", msg: resp.data });
         }, function (resp) {
-            $scope.addAlert({ type: 'danger', strong: rs + "Failure!", msg: resp.data });
+            $scope.AlertCtrl.addAlert({ type: 'danger', strong: rs + "Failure!", msg: resp.data });
         });
     };
 
@@ -152,14 +195,41 @@ dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope,
     $scope.StatsCtrl = ctrl;
 }]);
 
-dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, DynamicQuery) {
+dqmApp.controller('LumiRunCtrl', ['$scope', '$location', '$routeParams', 'DynamicQuery', function($scope, $location, $routeParams, DynamicQuery) {
+	var me = this;
+
+	me.current_run = parseInt($routeParams.run);
+	me.current_run_ = parseInt($routeParams.run);
+
+    me.set_run = function (v) {
+        $location.path("/lumi/" + v + "/");
+    };
+
     DynamicQuery.repeated_search("list-runs", "list/runs", null, function (body) {
         var runs = _.uniq(body.runs);
         runs.sort();
         runs.reverse();
 
-        $scope.runs = runs;
-        $scope.runs_loaded = true;
+        me.runs = runs;
+        me.runs_loaded = true;
+
+		// calculate previous and next runs
+		var fi = function (i) {
+			if (me.runs.length == 0)
+				return null;
+
+			if (i < 0)
+				return null;
+
+			if (me.runs.length <= i)
+				return null;
+
+			return me.runs[i];
+		}
+
+		var ci = _.indexOf(me.runs, me.current_run);
+		me.previous_run = fi(ci - 1);
+		me.next_run = fi(ci + 1);
     });
 
     $scope.$on("$destroy", function () {
@@ -167,15 +237,11 @@ dqmApp.controller('LumiRunCtrl', ['$scope', 'DynamicQuery', function($scope, Dyn
     });
 }]);
 
-dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '$routeParams', '$modal',
-        function($scope, $http, DynamicQuery, $location, $routeParams, $modal) {
+dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$routeParams', '$modal',
+        function($scope, $http, DynamicQuery, $routeParams, $modal) {
 
     var lumi = {
         run: $routeParams.run
-    };
-
-    lumi.set_run = function (v) {
-        $location.path("/lumi/" + v + "/");
     };
 
     lumi.ec_hide = {};
@@ -243,6 +309,14 @@ dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '
             } catch (e) {
                 console.log("Error", e);
             }
+
+            // remove aux/not cmsRun entries
+            var groups = _.groupBy(lumi.hits, "type");
+            lumi.hits = groups["dqm-source-state"] || [];
+
+            if (groups["dqm-timestamps"]) {
+                lumi.timestamps_doc = groups["dqm-timestamps"][0];
+            }
         });
 
     });
@@ -268,9 +342,9 @@ dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$location', '
             var p = $http.post("/utils/kill_proc/" + hit._id, body);
             
             p.then(function (resp) {
-                $scope.addAlert({ type: 'success', strong: "Success!", msg: resp.data });
+                $scope.AlertCtrl.addAlert({ type: 'success', strong: "Success!", msg: resp.data });
             }, function (resp) {
-                $scope.addAlert({ type: 'danger', strong: "Failure!", msg: resp.data });
+                $scope.AlertCtrl.addAlert({ type: 'danger', strong: "Failure!", msg: resp.data });
             });
         }, function () {
             // aborted, do nothing
@@ -430,8 +504,6 @@ dqmApp.directive('dqmMemoryGraph', function ($window) {
                 .xScale(d3.time.scale());
             ;
 
-            console.log("chart", chart);
-
             chart.interactiveLayer.tooltip.enabled(false);
             chart.interactiveLayer.tooltip.position({"left": 0, "top": 0});
 
@@ -488,171 +560,129 @@ dqmApp.directive('dqmMemoryGraph', function ($window) {
     };
 });
 
-
-dqmApp.directive('dqmLumiGraph', function ($window) {
+dqmApp.directive('graphDqmTimestampsLumi', function ($window) {
     // the "drawing" code is taken from http://bl.ocks.org/mbostock/4063423
     var d3 = $window.d3;
+    var LUMI = 23.310893056;
 
     return {
         restrict: 'E',
-        scope: { 'lumi': '=', 'width': '@', 'height': '@' },
+        scope: { 'data': '=', 'width': '@', 'height': '@' },
         link: function (scope, elm, attrs) {
             var width = parseInt(scope.width);
             var height = parseInt(scope.height);
-            var radius = Math.min(width, height) / 2;
-            var color = d3.scale.category20c();
 
-            var svg = d3.select(elm[0]).append("svg");
+            var div = d3.select(elm[0]).append("div");
+            var svg = div.append("svg");
             svg.attr("width", width).attr("height", height);
 
-            var g = svg.append("g");
-            g.attr("transform", "scale(" + width / 800 + "," + height / 600 + ")");
+            var chart = nv.models.scatterChart()
+                .showDistX(true)
+                .showDistY(true)
+                .x(function (x) { return x['lumi']; })
+                .y(function (x) { return x['delay']; })
+                .forceY([0, 60])
+                .forceX([0, 1])
+                .useVoronoi(false)
+                .transitionDuration(350)
+                .color(d3.scale.category10().range());
 
-            g.append("line")
-                .attr("x1", 0).attr("x2", 0)
-                .attr("y1", 0).attr("y2", 100)
-                .attr("stroke-width", 2)
-                .attr("stroke", "black");
-
-            //console.log([2 * Math.PI, radius * radius]);
-
-            //var partition = d3.layout.partition()
-            //    .sort(null)
-            //    .size([2 * Math.PI, radius * radius])
-            //    .value(function(d) { console.log('access', d); return 1; });
-
-            //var arc = d3.svg.arc()
-            //    .startAngle(function(d) { return d.x; })
-            //    .endAngle(function(d) { return d.x + d.dx; })
-            //    .innerRadius(function(d) { return Math.sqrt(d.y); })
-            //    .outerRadius(function(d) { return Math.sqrt(d.y + d.dy); });
-
-            //var arcTween = function(a) {
-            //    console.log("a", a);
-            //    var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
-
-            //    return function(t) {
-            //      var b = i(t);
-            //      a.x0 = b.x;
-            //      a.dx0 = b.dx;
-            //      return arc(b);
-            //    };
-            //}
-
-            var unpack_streams = function (lumi) {
-                var keys = _.keys(lumi);
-                return _.map(lumi, function (lst, name) {
-                    var obj = {
-                        'name': name,
-                        'lumi': [],
-                        'size': [],
-                        'ts': [],
-                    };
-
-                    _.map(lst, function (x) {
-                        var splits = x.split(":");
-                        var tags = splits[1].split(" ");
-
-                        splits = splits[0].split(" ");
-                        obj.lumi.push(parseInt(splits[0]));
-                        obj.size.push(parseInt(splits[1]));
-                        obj.ts.push(parseFloat(splits[2]));
-                    });
-
-                    return obj;
-                });
-
+            var tformat = function (timestamp) {
+                var d = new Date(parseFloat(timestamp)*1000);
+                return d.toLocaleString();
             };
 
-            scope.$watch('lumi', function (lumi) {
-                if (!lumi) return;
+            chart.tooltipContent(function(k, _v1, _v2, o) {
+                var p = o.point;
+                var gs = o.series.global_start;
 
-                lumi = unpack_streams(lumi);
-                console.log('new data', lumi);
-    
-                //g.selectAll("g").data(keys).enter().append('g').each(function (x) {
-                //  var packed = lumi[x];
-                //  var elm = d3.select(this);
-                //  var perLumi = (Math.PI*2) / 100;
-
-                //  var data = _.map(packed, function (x) {
-                //      var splits = x.split(":");
-                //      var tags = splits[1].split(" ");
-                //      console.log(splits, tags);
-
-                //      splits = splits[0].split(" ");
-                //      var lumi = parseInt(splits[0]);
-                //      var size = parseInt(splits[1]);
-                //      var ts = parseFloat(splits[2]);
-
-                //      return [lumi, size, ts];
-                //  });
-    
-                //  console.log(data, perLumi);
-                //  var startAngle = function (x) {
-
-
-                //  };
-
-                //  elm.selectAll("path")
-                //      .data(data)
-                //      .enter().append("svg:path")
-                //      .attr("d", d3.svg.arc()
-                //          .innerRadius(radius / 4)
-                //          .outerRadius(radius / 3)
-                //          .startAngle(startAngle)
-                //          .endAngle(function (x) { return startAngle(x) + perLumi; })
-                //      )
-                //      .style("fill", function(d, i) { return color(i); });
-                //});
-
-                //svg.selectAll("path")
-                //  .data(d3.layout.pie())
-                //  .enter().append("svg:path")
-                //  .attr("d", d3.svg.arc()
-                //  .innerRadius(r / 2)
-                //  .outerRadius(r))
-                //  .style("fill", function(d) { return color(1); });
-
-
-                //var path = svg.datum(lumi).selectAll("path")
-                //    .data(partition.nodes)
-                //    .enter().append("path")
-                //    .attr("display", function(d) { return d.depth ? null : "none"; }) // hide inner ring
-                //    .attr("d", arc)
-                //    .style("stroke", "#fff")
-                //    .style("fill", function(d) { console.log('x', d); return color(2); })
-                //    .style("fill-rule", "evenodd");
-
-                //path
-                //    .data(partition..nodes)
-                //    .transition()
-                //    .duration(1500)
-                //    .attrTween("d", arcTween);
-
-                //D3.selectAll("input").on("change", function change() {
-                //    var value = this.value === "count"
-                //      ? function() { return 1; }
-                //      : function(d) { return d.size; };
-
-                //    path
-                //        .data(partition.value(value).nodes)
-                //        .transition()
-                //        .duration(1500)
-                //        .attrTween("d", arcTween);
-                //});
-
+                return ""
+                    + "<h3>" + k + "</h3>"
+                    + "<span>"
+                    + "Lumi number: <strong>" + p.lumi + "</strong><br />"
+                    + "File m-time: <strong>" + tformat(p.mtime) + "</strong><br />"
+                    + "Time offset from the expected first delivery [delivery_start_offset]: <strong>" + p.start_offset  + " (seconds)</strong><br />"
+                    + "Delay [delivery_start_offset - (lumi_number - 1)*23.3]: <strong>" + p.delay + " (seconds)</strong><br />"
+                    + "-<br />"
+                    + "Run start (m-time on .runXXXX.global): <strong>" + tformat(gs) + "</strong><br />"
+                    + "Delivery start (run_start + 23.3): <strong>" + tformat(gs + LUMI) + "</strong><br />"
+                    + "</span>";
             });
-        },
+
+            chart.scatter.onlyCircles(false);
+
+            // Axis settings
+            chart.xAxis
+                .axisLabel("Lumisection")
+                .tickFormat(d3.format('.00f'));
+
+            chart.yAxis
+                .axisLabel("Delay (s)")
+                .tickFormat(d3.format('.01f'));
+
+            scope.$watch("data", function (data) {
+                if ((!data) || (!data.extra) || (!data.extra.streams))
+                    return;
+
+                var date_start = data.extra.global_start;
+                var streams = data.extra.streams;
+
+                // from key:value, make a [value], and key being an entry in value
+
+                var rest = _.map(_.keys(streams), function (k) {
+                    var lumis = streams[k].lumis;
+                    var mtimes = streams[k].mtimes;
+
+                    var e = {};
+                    e["key"] = k;
+                    e["values"] = _.map(lumis, function (_lumi, index) {
+                        var lumi = lumis[index];
+                        var mtime = mtimes[index];
+
+                        // timeout from the begging of the run
+                        var start_offset = mtime - date_start - LUMI;
+                        var lumi_offset = (lumi - 1) * LUMI;
+
+                        // timeout from the time we think this lumi happenned
+                        var delay = start_offset - lumi_offset;
+
+                        return {
+                            // 'x': lumi,
+                            // 'y': delay,
+
+                            'lumi': lumi,
+                            'mtime': mtime,
+
+                            'start_offset': start_offset,
+                            'delay': delay,
+                            'size': 100,
+                            'shape': "circle",
+                        }
+                    });
+                    e["global_start"] = date_start;
+
+                    return e;
+                });
+
+                scope.graph_data = rest;
+            });
+
+            scope.$watch("graph_data", function (data) {
+                if (!data)
+                    return;
+
+                svg.datum(data).call(chart);
+                chart.update();
+            });
+        }
     };
 });
 
-
 dqmApp.config(function($routeProvider, $locationProvider) {
   $routeProvider
-    .when('/lumi/', { menu: 'lumi', templateUrl: 'templates/lumi.html' })
-    .when('/stats/', { menu: 'stats', templateUrl: 'templates/stats.html' })
-    .when('/lumi/:run/', { menu: 'lumi', templateUrl: 'templates/lumi.html' })
+    .when('/lumi/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
+    .when('/stats/', { menu: 'stats', templateUrl: 'templates/stats.html', reloadOnSearch: false })
+    .when('/lumi/:run/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
     .otherwise({ redirectTo: '/lumi' });
 
   // configure html5 to get links working on jsfiddle

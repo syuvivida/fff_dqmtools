@@ -63,6 +63,7 @@ def analyze_run_entry(e):
         f = os.path.join(e.path, m.group(0))
 
         stream = d["leftover"].strip("_")
+        stream = re.sub(r".jsn$", r"", stream)
         mtime = os.stat(f).st_mtime
 
         files.append(FileEntry(int(d['ls']), stream, mtime))
@@ -78,11 +79,11 @@ class Analyzer(object):
         self.app_tag = app_tag
         self.hostname = socket.gethostname()
 
-    def make_report(self):
+    def make_report(self, backlog=5):
         timestamps = collect_run_timestamps(self.top)
 
         # only last 5 entries
-        for entry in timestamps[-5:]:
+        for entry in timestamps[-backlog:]:
             files = analyze_run_entry(entry)
 
             # group by stream name in order to save space
@@ -107,6 +108,7 @@ class Analyzer(object):
                 "sequence": 0,
                 "hostname": self.hostname,
                 "tag": self.app_tag,
+                "run": entry.run,
                 "extra": {
                     "streams": grouped,
                     "global_start": entry.start_time,
@@ -133,7 +135,7 @@ class Analyzer(object):
             time.sleep(105)
 
 @fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
-@fff_dqmtools.fork_wrapper(__name__)
+@fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, logger, **kwargs):
     global log
@@ -152,10 +154,10 @@ if __name__ == "__main__":
 
     s = Analyzer(
         top = "/fff/ramdisk/",
-        app_tag = __name__,
-        report_directory = "/tmp/dqm_test",
+        app_tag = "analyze_mtime",
+        report_directory = "/tmp/dqm_monitoring/",
     )
 
-    s.make_report()
+    s.make_report(backlog=500)
 
 

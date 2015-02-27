@@ -1,17 +1,35 @@
 <div ng-controller="LumiCtrl">
-  <div ng-controller="LumiRunCtrl">
-    <div ng-show="runs_loaded">
-      <div ng-show="runs.length"  class="runs alert-success alert">
-        <span ng-if="! LumiCtrl.show_all">
-          <a ng-repeat="key in runs | limitTo:8" class="label-run label label-info" ng-click="LumiCtrl.set_run(key)"> {{ key }} </a>
-          <a class="label-run label label-info" ng-click="LumiCtrl.show_all = true"> ... (click for more) </a>
+  <div ng-controller="LumiRunCtrl as LumiRunCtrl">
+    <div ng-show="LumiRunCtrl.runs_loaded">
+      <div ng-show="LumiRunCtrl.runs.length"  class="runs alert-success alert run-browser">
+
+        <span ng-if="! ParamsCtrl.params.showRunBrowser">
+          <a ng-repeat="key in LumiRunCtrl.runs | limitTo:15" class="label-run label label-info" ng-click="LumiRunCtrl.set_run(key)"> {{ key }} </a>
+
+          <a class="label-run label label-warning"  ng-click="ParamsCtrl.setKey('showRunBrowser', true)"> (click for more) </a>
         </span>
-        <span ng-if="LumiCtrl.show_all">
-          <a ng-repeat="key in runs" class="label-run label label-info" ng-click="LumiCtrl.set_run(key)"> {{ key }} </a>
+
+        <span ng-if="ParamsCtrl.params.showRunBrowser">
+          <form class="form-inline">
+            <div class="form-group">
+              <input type="text" typeahead="run for run in LumiRunCtrl.runs | filter:$viewValue | limitTo:8"
+                class="form-control input-sm" ng-model="LumiRunCtrl.current_run_">
+            </div>
+
+          <button ng-show="LumiRunCtrl.current_run != LumiRunCtrl.current_run_" type="submit" class="btn btn-primary btn-sm" ng-click="LumiRunCtrl.set_run(LumiRunCtrl.current_run_)"> go! </button>
+
+          <button ng-show="LumiRunCtrl.previous_run" class="btn btn-default btn-sm" ng-click="LumiRunCtrl.set_run(LumiRunCtrl.previous_run)"> previous: {{ LumiRunCtrl.previous_run }}</button>
+          <button ng-show="LumiRunCtrl.next_run" class="btn btn-default btn-sm" ng-click="LumiRunCtrl.set_run(LumiRunCtrl.next_run)"> next: {{ LumiRunCtrl.next_run }}</button>
+          <a class="btn btn-warning btn-xs close-browser" ng-click="ParamsCtrl.setKey('showRunBrowser', null)"> (return/hide) </a>
+          </form>
+
+          <!--span ng-show="LumiRunCtrl.current_run" class="label label-success"> {{ LumiRunCtrl.current_run }} </span>
+          <span ng-hide="LumiRunCtrl.current_run" class="label label-success"> (none) </span-->
+
         </span>
       </div>
 
-      <div ng-hide="runs.length" class="runs alert-warning alert">
+      <div ng-hide="LumiRunCtrl.runs.length" class="runs alert-warning alert">
         <strong>Warning!</strong> no runs!
       </div>
     </div>
@@ -20,13 +38,28 @@
   <div ng-show="LumiCtrl.run">
 
     <div class="page-header">
-      <h2>Run <span class="label label-success">{{ LumiCtrl.run }}</span></h2>
+      <h2>Run <span class="label label-success">{{ LumiCtrl.run }}</span>
+      <div class="scheme filter">
+        <a ng-hide="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', true)" class="btn btn-info btn-xs">show stream delivery graph</a>
+        <a ng-show="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', null)" class="btn btn-info btn-xs">hide stream delivery graph</a>
+      </div>
+    </h2>
     </div>
 
-    <div class="scheme filter">
-      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.success, 'btn-success': !LumiCtrl.ec_hide.success }" ng-click="LumiCtrl.ec_toggle('success')" class="btn btn-xs">running</a>
-      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.warning, 'btn-warning': !LumiCtrl.ec_hide.warning }" ng-click="LumiCtrl.ec_toggle('warning')" class="btn btn-xs">stopped</a>
-      <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.danger,  'btn-danger' : !LumiCtrl.ec_hide.danger  }" ng-click="LumiCtrl.ec_toggle('danger')"  class="btn btn-xs">crashed</a>
+    <div ng-if="ParamsCtrl.params.showTimestampsGraph">
+      <div ng-if="LumiCtrl.timestamps_doc">
+        <graph-dqm-timestamps-lumi height="300" width="800" data="LumiCtrl.timestamps_doc" />
+      </div>
+    </div>
+
+    <div class="page-header">
+
+      <h3> Known cmssw jobs for this host </h3>
+      <div class="scheme filter">
+        <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.success, 'btn-success': !LumiCtrl.ec_hide.success }" ng-click="LumiCtrl.ec_toggle('success')" class="btn btn-xs">running</a>
+        <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.warning, 'btn-warning': !LumiCtrl.ec_hide.warning }" ng-click="LumiCtrl.ec_toggle('warning')" class="btn btn-xs">stopped</a>
+        <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.danger,  'btn-danger' : !LumiCtrl.ec_hide.danger  }" ng-click="LumiCtrl.ec_toggle('danger')"  class="btn btn-xs">crashed</a>
+      </div>
     </div>
 
     {{ LumiCtrl.tags }}
@@ -46,6 +79,9 @@
           <th>Actions</th>
         </tr>
       </thead>
+      <tbody ng-hide="LumiCtrl.hits.length">
+      <tr class="align-center active"><td colspan="100">no data</td></tr>
+      </tbody>
       <tbody ng-repeat="hit in LumiCtrl.hits">
         <tr ng-class="hit.$ec_class" ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]">
           <td class="timestamp">

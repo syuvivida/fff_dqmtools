@@ -23,89 +23,94 @@
   </head>
 
   <body role="document" ng-app="dqmApp">
-    <div ng-controller="NavigationController">
-      <div ng-controller="ClusterCtrl">
-        <!-- Fixed navbar -->
-        <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
-          <div class="container">
-            <div class="navbar-header">
-              <a class="navbar-brand" href="" ng-click="dqm_number = dqm_number + 1">
-                <span ng-hide="dqm_number == 3">DQM</span>
-                <span ng-show="dqm_number == 3">DEBUGQM</span>
-                <sup>{{ dqm_number }}</sup>
-              </a>
-            </div>
-            <div class="navbar-collapse collapse">
-              <ul class="nav navbar-nav">
-                <li ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Machines</a></li>
-                <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">cmsRun jobs</a></li>
-
-                <li class="dropdown">
-                  <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
-                    <span class="label label-info">
-                      {{ ClusterCtrl.info_data.hostname }}
-                      [{{ ClusterCtrl.info_data.cluster.label }}]
-                    </span>
+    <div ng-controller="AlertCtrl as AlertCtrl">
+      <div ng-controller="ParamsCtrl as ParamsCtrl">
+        <div ng-controller="NavigationCtrl">
+          <div ng-controller="ClusterCtrl">
+            <!-- Fixed navbar -->
+            <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+              <div class="container">
+                <div class="navbar-header">
+                  <a class="navbar-brand" href="" ng-click="dqm_number = dqm_number + 1">
+                    <span ng-hide="dqm_number == 3">DQM</span>
+                    <span ng-show="dqm_number == 3">DEBUGQM</span>
+                    <sup>{{ dqm_number }}</sup>
                   </a>
+                </div>
+                <div class="navbar-collapse collapse">
+                  <ul class="nav navbar-nav">
+                    <li ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Machines</a></li>
+                    <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
 
-                  <ul class="dropdown-menu" role="menu">
-                    <li><a>{{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
-                    <li class="divider"></li>
+                    <li class="dropdown">
+                      <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+                        <span class="label label-info">
+                          {{ ClusterCtrl.info_data.hostname }}
+                          [{{ ClusterCtrl.info_data.cluster.label }}]
+                        </span>
+                      </a>
 
-                    <li ng-repeat="(k,v) in ClusterCtrl.info_data.cluster._all">
-                      <a>{{ k }}:</a>
-                      <ul class="nodes">
-                        <li ng-repeat="host in v">
-                          <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
-                          <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
+                      <ul class="dropdown-menu" role="menu">
+                        <li><a>{{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
+                        <li class="divider"></li>
+
+                        <li ng-repeat="(k,v) in ClusterCtrl.info_data.cluster._all">
+                          <a>{{ k }}:</a>
+                          <ul class="nodes">
+                            <li ng-repeat="host in v">
+                              <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
+                              <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
+                            </li>
+                          </ul>
                         </li>
                       </ul>
                     </li>
+
+                    <li ng-controller="DeleteCtrl">
+                      <a href="" ng-click="DeleteCtrl.openDeleteDialog()"><span class="label label-success">
+                        size: {{ ClusterCtrl.info_data.db_size | dqm_megabytes }}
+                      </span></a>
+                    </li>
+
                   </ul>
-                </li>
 
-                <li ng-controller="DeleteCtrl">
-                  <a href="" ng-click="DeleteCtrl.openDeleteDialog()"><span class="label label-success">
-                    size: {{ ClusterCtrl.info_data.db_size | dqm_megabytes }}
-                  </span></a>
-                </li>
-              </ul>
+                  <ul class="nav navbar-nav pull-right">
+                    <li>
+                      <a ng-switch on="NavigationCtrl.http_state" ng-click="ElasticQuery.update_now()">
+                        <span ng-switch-when="busy" class="label label-warning"> Loading: {{ NavigationCtrl.http_count }} </span>
+                        <span ng-switch-when="ready" class="label label-success"> Ready </span>
+                        <span ng-switch-default class="label label-important"> {{ NavigationCtrl.http_state }} </span>
+                      </a>
+                    </li>
+                  </ul>
 
-              <ul class="nav navbar-nav pull-right">
-                <li>
-                  <a ng-switch on="NavigationController.http_state" ng-click="ElasticQuery.update_now()">
-                    <span ng-switch-when="busy" class="label label-warning"> Loading: {{ NavigationController.http_count }} </span>
-                    <span ng-switch-when="ready" class="label label-success"> Ready </span>
-                    <span ng-switch-default class="label label-important"> {{ NavigationController.http_state }} </span>
-                  </a>
-                </li>
-              </ul>
+                  <form class="navbar-form navbar-right pull-right" role="form">
+                    <div class="form-group">
+                      <select class="form-control input-sm" ng-model="ParamsCtrl.params.search_interval" ng-change="ParamsCtrl.navigate()">
+                        <option value="">none</option>
+                        <option value="1">1s.</option>
+                        <option value="5">5s.</option>
+                        <option value="30">30s.</option>
+                        <option value="600">600s.</option>
+                      </select>
+                    </div>
+                  </form>
 
-              <form class="navbar-form navbar-right pull-right" role="form">
-                <div class="form-group">
-                  <select class="form-control input-sm" ng-model="NavigationController.search_interval">
-                    <option value="">none</option>
-                    <option value="1">1s.</option>
-                    <option value="5">5s.</option>
-                    <option value="30">30s.</option>
-                    <option value="600">600s.</option>
-                  </select>
-                </div>
-              </form>
+                </div><!--/.nav-collapse -->
+              </div>
+            </div>
 
-            </div><!--/.nav-collapse -->
+            <div class="container theme-showcase" role="main">
+              <alert ng-repeat="alert in AlertCtrl.alerts" type="{{ alert.type }}" close="AlertCtrl.closeAlert($index)">
+                <strong ng-show="alert.strong">{{ alert.strong }}</strong>
+                {{ alert.msg }}
+              </alert>
+              <div ng-view></div>
+            </div>
           </div>
-        </div>
-
-        <div class="container theme-showcase" role="main">
-          <alert ng-repeat="alert in alerts" type="{{ alert.type }}" close="closeAlert($index)">
-            <strong ng-show="alert.strong">{{ alert.strong }}</strong>
-            {{ alert.msg }}
-          </alert>
-          <div ng-view></div>
-        </div>
-      </div>
-    </div> <!-- navigation controller -->
+        </div> <!-- navigation controller -->
+      </div> <!-- params controller -->
+    </div> <!-- alert controller -->
 
     <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
     <script src="external/jquery.min.js"></script>
@@ -114,7 +119,7 @@
 
     <script src="external/angular.js"></script>
     <script src="external/angular-route.js"></script>
-    <script src="external/ui-bootstrap-tpls-0.12.0.js"></script>
+    <script src="external/ui-bootstrap-tpls-0.12.1.js"></script>
     <script src="external/highlight/highlight.pack.js"></script>
 
     <script src="external/underscore-min.js"></script>

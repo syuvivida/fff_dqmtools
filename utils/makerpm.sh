@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.0.2
+Version: 1.0.3
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -60,11 +60,15 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 /etc/init.d/fff_dqmtools
 
 %post
-/usr/lib/lsb/install_initd /etc/init.d/fff_dqmtools
-/etc/init.d/fff_dqmtools restart
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/fff_dqmtools
+else
+  /sbin/chkconfig --add fff_dqmtools
+fi
 
-%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
+/etc/init.d/fff_dqmtools restart
 EOF
+# %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --define "_topdir `pwd`/RPMBUILD" -bb fff-dqmtools.spec

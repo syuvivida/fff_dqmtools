@@ -10,6 +10,19 @@ def call(*kargs, **kwargs):
     print "Finished command:", r
 
 def install_local(rpm):
+    call(["sudo yum -y remove fff-dqmtools"], shell=True)
+    call(["sudo /etc/init.d/fff_dqmtools stop"], shell=True)
+    call(["sudo /etc/init.d/fff_deleter stop"], shell=True)
+    call(["sudo /etc/init.d/fff_deleter_minidaq stop"], shell=True)
+    call(["sudo /etc/init.d/fff_deleter_transfer stop"], shell=True)
+    call(["sudo rm -f /etc/init.d/fff_deleter"], shell=True)
+    call(["sudo rm -f /etc/init.d/fff_deleter_minidaq"], shell=True)
+    call(["sudo rm -f /etc/init.d/fff_deleter_transfer"], shell=True)
+    call(["sudo rm -frv /opt/fff_dqmtools"], shell=True)
+    call(["sudo", "yum", "-y", "install", rpm])
+
+
+    #call(["sudo", "/etc/init.d/fff_monitoring", "stop"])
     #call(["sudo", "/etc/init.d/fff_monitoring", "stop"])
     #call(["sudo", "chkconfig", "--del", "fff_monitoring"])
     #call(["sudo", "rm", "/etc/init.d/fff_monitoring"])
@@ -17,7 +30,7 @@ def install_local(rpm):
     #call(["sudo ls -la /var/run/fff_*"], shell=True)
     #call(["sudo ps aux | grep fff_"], shell=True)
     #call(["ps aux | grep fff_dqm"], shell=True)
-    call(["sudo", "yum", "-y", "reinstall", rpm])
+    #call(["sudo", "yum", "-y", "reinstall", rpm])
     #call(["sudo", "chkconfig", "fff_dqmtools", "on"])
 
 def install_remote(spath, host):
@@ -34,7 +47,7 @@ if __name__ == "__main__":
     spath = os.path.abspath(__file__)
     os.chdir(os.path.dirname(spath))
 
-    rpms = glob.glob("./tmp/RPMBUILD/RPMS/x86_64/*.rpm")
+    rpms = glob.glob("../tmp/RPMBUILD/RPMS/x86_64/*.rpm")
     rpm = None
     if len(rpms) == 1:
         rpm = rpms[0]

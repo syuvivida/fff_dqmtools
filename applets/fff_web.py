@@ -246,15 +246,8 @@ def __run__(opts, **kwargs):
     port = opts["web.port"]
     path = opts["path"]
 
-    # create logger for file monitor
-    fweb_logger = logging.getLogger("fff_web")
-    fmon_logger = logging.getLogger("fff_filemonitor")
-    fmon_logger.setLevel(fweb_logger.level)
-    for h in fweb_logger.handlers:
-        fmon_logger.addHandler(h)
-
     fweb = WebServer(db = db)
-    fmon = fff_filemonitor.FileMonitor(path = path, fweb = fweb)
+    fmon = fff_filemonitor.FileMonitor(path = path, fweb = fweb, log = log)
 
     fwt = gevent.spawn(lambda: fweb.run_greenlet(port = port))
     fmt = gevent.spawn(lambda: fmon.run_greenlet())

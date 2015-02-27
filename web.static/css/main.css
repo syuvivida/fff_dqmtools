@@ -1,5 +1,6 @@
 body { padding-top: 70px; padding-bottom: 30px; }
 td.align-right, th.align-right { text-align: right; }
+td.align-center, th.align-center, tr.align-center { text-align: center; }
 
 div.alert.runs { overflow: hidden; padding: 5px; }
 .label-run { margin: 5px; float: left; }
@@ -21,3 +22,4 @@ td pre.prettyprint { white-space: pre-wrap; }
 ul.nodes {  list-style-type: none; padding-left: 30px; }
 
 a.icinga { float: right; margin-right: 15px; }
+div.run-browser a.close-browser { float: right; }
