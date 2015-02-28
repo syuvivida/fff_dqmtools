@@ -22,7 +22,11 @@ RETVAL=0
 
 start() {
 	echo -n "Starting $NAME daemon: "
-	daemon --pidfile $PIDFILE $DAEMON_BIN --pidfile $PIDFILE --logfile $LOGFILE $DAEMON_ARGS
+
+	# python relies on the current path ....
+	export HOME=/opt/fff_dqmtools
+
+	cd /opt/fff_dqmtools && daemon --pidfile $PIDFILE $DAEMON_BIN --pidfile $PIDFILE --logfile $LOGFILE $DAEMON_ARGS
 	RETVAL=$?
 	echo
 

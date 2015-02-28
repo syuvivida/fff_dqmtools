@@ -19,6 +19,8 @@ def prepare_imports():
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
 
+    sys.path.append(os.path.join(thp, "./lib/gevent_websocket-0.9.3-py2.6.egg"))
+
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
 
@@ -146,7 +148,7 @@ def lock_wrapper(f):
 
         lock = _socket_lock(lkey)
         if lock is None:
-            raise Exception("Could not get the lock for %s" % lkey)
+            raise Exception("Could not get the lock for %s, path: %s" % (lkey, __ipath__))
 
         logger.info("Acquired lock: %s", lkey)
         f(*kargs, **kwargs)

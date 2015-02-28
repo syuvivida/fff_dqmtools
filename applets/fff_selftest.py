@@ -74,7 +74,7 @@ class FFFMonitoringTest(object):
             except:
                 log.warning("Failed to create a report!", exc_info=True)
 
-            gevent.sleep(60)
+            gevent.sleep(5)
 
 # no wrappers, it runs in the main/supervisor process
 def __run__(opts, **kwargs):

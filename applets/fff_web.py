@@ -22,6 +22,9 @@ class WebServer(object):
             self.db_str = ":memory:"
 
         self.db = sqlite3.connect(self.db_str)
+
+        self.ws_listeners = set()
+
         self.create_tables()
         self.setup_routes()
 
@@ -38,52 +41,93 @@ class WebServer(object):
         cur.execute("""
         CREATE TABLE IF NOT EXISTS Monitoring (
             id TEXT PRIMARY KEY NOT NULL,
+            rev INT,
             timestamp TIMESTAMP,
+            hostname TEXT,
             type TEXT,
-            host TEXT,
             tag  TEXT,
             run  INT,
             body BLOB
         )""")
 
         cur.execute("CREATE INDEX IF NOT EXISTS M_type_index ON Monitoring (type)")
-        cur.execute("CREATE INDEX IF NOT EXISTS M_host_index ON Monitoring (host)")
+        cur.execute("CREATE INDEX IF NOT EXISTS M_host_index ON Monitoring (hostname)")
         cur.execute("CREATE INDEX IF NOT EXISTS M_run_index ON Monitoring (run)")
+        cur.execute("CREATE INDEX IF NOT EXISTS M_rev_index ON Monitoring (rev)")
 
         self.db.commit()
         cur.close()
 
+    def make_header(self, doc):
+        header = {
+            "_id":          doc.get("_id"),
+            "_rev":         doc.get("_rev", None),
+            "timestamp":    doc.get("timestamp", time.time()),
+            "hostname":     doc.get("hostname", None),
+            "type":         doc.get("type", None),
+            "tag":          doc.get("tag", None),
+            "run":          doc.get("run", None),
+        }
+
+        return header
+
     def direct_transactional_upload(self, bodydoc_generator):
+        headers = []
         with self.db as db:
+            rev = None
+
+            def get_last_rev():
+                cur = db.cursor()
+                x = cur.execute("SELECT MAX(rev) FROM Monitoring")
+                r = (x.fetchone()[0] or 0)
+                cur.close()
+                return r
+
             for (body, doc, ) in bodydoc_generator:
-                db.execute("INSERT OR REPLACE INTO Monitoring (id, timestamp, type, host, tag, run, body) VALUES (?, ?, ?, ?, ?, ?, ?)", (
-                    doc.get("_id"),
-                    doc.get("timestamp", time.time()),
-                    doc.get("type"),
-                    doc.get("hostname"),
-                    doc.get("tag"),
-                    doc.get("run"),
+                if rev is None:
+                    rev = get_last_rev()
+
+                # not that we ever overflow it ...
+                rev = (rev + 1) & ((2**63)-1)
+                header = self.make_header(doc)
+                header["_rev"] = rev
+
+                db.execute("INSERT OR REPLACE INTO Monitoring (id, rev, timestamp, type, hostname, tag, run, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+                    header.get("_id"),
+                    header.get("_rev"),
+                    header.get("timestamp"),
+                    header.get("type"),
+                    header.get("hostname"),
+                    header.get("tag"),
+                    header.get("run"),
                     body,
                 ))
 
+                headers.append(header)
+
+        self.update_listeners(headers)
+
     def setup_routes(self):
+        app = bottle.Bottle()
+        self.app = app
+
         static_path = os.path.dirname(__file__)
         static_path = os.path.join(static_path, "../web.static/")
 
-        @bottle.route('/static/<filepath:path>')
+        @app.route('/static/<filepath:path>')
         def static(filepath):
             return bottle.static_file(filepath, root=static_path)
 
-        @bottle.route('/')
+        @app.route('/')
         def index():
             bottle.redirect("/static/index.html")
 
-        @bottle.post('/update/<id>')
+        @app.post('/update/<id>')
         def update(id):
             print "post", id
             pass
 
-        @bottle.get("/info")
+        @app.get("/info")
         def info():
             c = self.db.cursor()
             c.execute("PRAGMA page_size")
@@ -99,7 +143,7 @@ class WebServer(object):
                 'db_size': ps*pc,
             }
 
-        @bottle.route("/list/runs", method=['GET', 'POST'])
+        @app.route("/list/runs", method=['GET', 'POST'])
         def list_runs():
             c = self.db.cursor()
             c.execute("SELECT DISTINCT run FROM Monitoring ORDER BY run DESC")
@@ -125,7 +169,7 @@ class WebServer(object):
 
             return hits
 
-        @bottle.route("/list/run/<run:int>", method=['GET', 'POST'])
+        @app.route("/list/run/<run:int>", method=['GET', 'POST'])
         def list_run(run):
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run = ? ORDER BY tag ASC", (run, ))
@@ -133,7 +177,7 @@ class WebServer(object):
             c.close()
             return docs
 
-        @bottle.route("/list/stats", method=['GET', 'POST'])
+        @app.route("/list/stats", method=['GET', 'POST'])
         def list_stats():
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run IS NULL ORDER BY tag ASC")
@@ -141,8 +185,8 @@ class WebServer(object):
             c.close()
             return docs
 
-        @bottle.route("/show/log/<id>", method=['GET', 'POST'])
-        def list_stats(id):
+        @app.route("/show/log/<id>", method=['GET', 'POST'])
+        def show_log(id):
             c = self.db.cursor()
             c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
             doc = c.fetchone()
@@ -162,7 +206,7 @@ class WebServer(object):
             raise bottle.HTTPError(500, "Log path not found.")
 
 
-        @bottle.route("/utils/kill_proc/<id>", method=['POST'])
+        @app.route("/utils/kill_proc/<id>", method=['POST'])
         def kill_proc(id):
             from bottle import request
             data = json.loads(request.body.read())
@@ -195,7 +239,18 @@ class WebServer(object):
             body = "Process killed, kill exit_code: %d" % r
             return body
 
-        @bottle.route("/utils/drop_run", method=['POST'])
+        #from geventwebsocket import WebSocketError
+
+        #@bottle.route("/sync")
+        #def sync_headers():
+        #    wsock = request.environ.get('wsgi.websocket')
+        #    if not wsock:
+        #        abort(400, 'Expected WebSocket request.')
+
+        #    # outputs headers from rev $1 to now
+        #    pass
+
+        @app.route("/utils/drop_run", method=['POST'])
         def drop_run():
             from bottle import request
             data = json.loads(request.body.read())
@@ -210,23 +265,74 @@ class WebServer(object):
 
             return "Rows deleted for run%08d!" % run
 
-    def run_test(self, port=9315):
-        bottle.run(host="0.0.0.0", port=port, reloader=True)
+        web_app = self
 
-    def run_greenlet(self, host="::0", port=9215, **kwargs):
+        # i don't like this interface of websocket
+        from geventwebsocket import WebSocketApplication
+
+        class SyncApp(WebSocketApplication):
+            def on_open(self):
+                ac = self.ws.handler.active_client
+
+                log.info("WebSocket connected: %s", ac.address)
+                web_app.ws_listeners.add(ac)
+
+            def on_close(self, reason):
+                ac = self.ws.handler.active_client
+
+                log.info("WebSocket disconnected: %s, reason: %s", ac.address, reason)
+                web_app.ws_listeners.remove(ac)
+
+            def on_message(self, msg):
+
+
+                print self.ws.handler.server.clients
+                print dir(self.ws.handler.active_client)
+                sys.stdout.flush()
+                pass
+
+        self.sync_app = SyncApp
+
+    def update_listeners(self, headers):
+        if len(headers) == 0:
+            return
+
+        for client in self.ws_listeners:
+            try:
+                client.ws.send(json.dumps({
+                    'event': 'update_headers',
+                    'headers': headers,
+                }))
+            except:
+                log.warning("Unable to send an update to a WebSocket", exc_info=True)
+
+    def run_greenlet(self, host="0.0.0.0", port=9215, **kwargs):
         from gevent import wsgi, pywsgi, local
         #if not self.options.pop('fast', None): wsgi = pywsgi
 
-        addr = socket.getaddrinfo(host, port, socket.AF_INET6, 0, socket.SOL_TCP)
-        listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(addr[0][-1])
-        listener.listen(15)
+        ## this was for the ipv6 support, but it does not work with websockets
+        ## need a new version of gevent, which is not yet in slc
 
-        #listener = (host, port, )
+        #addr = socket.getaddrinfo(host, port, socket.AF_INET6, 0, socket.SOL_TCP)
+        #listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        #listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #listener.bind(addr[0][-1])
+        #listener.listen(15)
 
-        app = bottle.default_app()
-        server = wsgi.WSGIServer(listener, app, **kwargs)
+        listener = (host, port, )
+
+        from geventwebsocket import WebSocketServer, Resource
+        from geventwebsocket.handler import WebSocketHandler
+
+        r = Resource({
+            '/': self.app,
+            '/sync': self.sync_app
+        })
+
+        server = pywsgi.WSGIServer(listener, r, handler_class=WebSocketHandler)
+
+        # this is needed for the sync
+        self.sync_server = server
 
         log.info("Using db: %s." % (self.db_str))
         log.info("Started web server at [%s]:%d" % (host, port))
