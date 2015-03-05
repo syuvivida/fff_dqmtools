@@ -10,24 +10,26 @@ sys.path.append(os.path.join(cd, "../"))
 import applets.fff_filemonitor as fff_filemonitor
 
 if __name__  == "__main__":
-    if len(sys.argv) != 3:
-        print "Usage: %s database_file output_directory" % sys.argv[0]
+    if len(sys.argv) < 3:
+        print "Usage: %s output_directory database_file" % sys.argv[0]
         sys.exit(1)
 
-    db = sys.argv[1]
-    path = sys.argv[2]
+    path = sys.argv[1]
 
 
-    conn = sqlite3.connect(db)
-    c = conn.cursor()
-    c.execute("SELECT id, body FROM Monitoring")
+    for db in sys.argv[2:]:
+        print "Opening db:", db
 
-    for x in iter(c.fetchone, None):
-        n_id = x[0]
-        n_body = x[1]
+        conn = sqlite3.connect(db)
+        c = conn.cursor()
+        c.execute("SELECT id, body FROM Monitoring")
 
-        fp = os.path.join(path, n_id + ".jsn")
-        print "Creating file %s size=%d" % (fp, len(n_body))
-        fff_filemonitor.atomic_create_write(fp, n_body)
+        for x in iter(c.fetchone, None):
+            n_id = x[0]
+            n_body = x[1]
 
-    c.close()
+            fp = os.path.join(path, n_id + ".jsn")
+            print "Creating file %s size=%d" % (fp, len(n_body))
+            fff_filemonitor.atomic_create_write(fp, n_body)
+
+        c.close()

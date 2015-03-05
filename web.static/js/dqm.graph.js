@@ -144,8 +144,13 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 .tickFormat(d3.format('.01f'));
 
             scope.$watch("data", function (data) {
-                if ((!data) || (!data.extra) || (!data.extra.streams))
-                    return;
+                if ((!data) || (!data.extra) || (!data.extra.streams)) {
+					// we have no data available
+					// so just render "no_data"
+
+					scope.graph_data = null;
+					return;
+				};
 
                 var date_start = data.extra.global_start;
                 var streams = data.extra.streams;
@@ -191,10 +196,15 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
             });
 
             scope.$watch("graph_data", function (data) {
-                if (!data)
-                    return;
+				var datum = data;
 
-                svg.datum(data).call(chart);
+                if (!datum) {
+                    datum = [];
+					// nvd3 does not clear the graph properly, we do it for them
+					svg.selectAll("*").remove();
+				}
+
+                svg.datum(datum).call(chart);
                 chart.update();
             });
         }

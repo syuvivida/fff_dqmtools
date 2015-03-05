@@ -14,6 +14,108 @@ import bottle
 
 log = logging.getLogger(__name__)
 
+
+from geventwebsocket import WebSocketServer, Resource, WebSocketError
+from geventwebsocket.handler import WebSocketHandler
+
+class SyncClient(object):
+    STATE_NONE      = 1
+    STATE_INSYNC    = 2
+    STATE_LISTEN    = 3
+    STATE_CLOSED    = -1
+
+    def __init__(self, app, ws):
+        self.app = app
+        self.ws = ws
+        self.address = ws.handler.client_address
+
+        self.backlog = []
+        self.state = self.STATE_NONE
+        self.close_reason = None
+
+    def kill(self, reason):
+        if self.state == self.STATE_CLOSED:
+            return
+
+        self.state = self.STATE_CLOSED
+        self.close_reason = reason
+    
+    def receiveMessage(self, msg):
+        #print "recv:", self, msg
+        #sys.stdout.flush()
+
+        if msg is None:
+            self.kill("closed")
+            return
+
+        jsn = json.loads(msg)
+        if jsn["event"] == "sync_request":
+            known_rev = jsn["known_rev"]
+            log.info("WebSocket client (%s) requested sync from rev %s", self.address, known_rev)
+            self.state = self.STATE_INSYNC
+
+            # send the current state
+            # if any changes happen during this time
+            # they go into backlog
+            with self.app.db as db:
+                c = db.cursor()
+
+                c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
+                headers = list(self.app.prepare_headers(c))
+                self.backlog.insert(0, headers)
+                c.close()
+
+            while len(self.backlog):
+                h = self.backlog.pop(0)
+                self.sendHeaders(h)
+
+            self.state = self.STATE_LISTEN
+        
+        if jsn["event"] == "request_documents":
+            ids = set(jsn["ids"])
+
+            with self.app.db as db:
+                c = db.cursor()
+
+                IN = "(" + ",".join("?"*len(ids)) + ")"
+                c.execute("SELECT * FROM Monitoring WHERE id IN " + IN, list(ids))
+
+                docs = list(self.app.prepare_docs(c))
+                c.close()
+
+            jsn = json.dumps({
+                'event': 'update_documents',
+                'documents': docs,
+            }).encode("utf8")
+
+            log.info("WebSocket client (%s) requested %d documents (%d bytes)", self.address, len(ids), len(jsn))
+            self.ws.send(jsn)
+
+    def sendHeaders(self, headers):
+        # split sending into multiple messages
+        # this should be extremely helpful with users on bad connections
+        cp = list(headers)
+        max_size = 1000 
+        last_rev = cp[-1]["_rev"]
+
+        while cp:
+            to_send, cp = cp[:max_size], cp[max_size:]
+
+            self.ws.send(json.dumps({
+                'event': 'update_headers',
+                'rev': [to_send[0]["_rev"], to_send[-1]["_rev"]],
+                'sync_to_rev': last_rev,
+                'headers': to_send,
+            }))
+
+    def handleUpdate(self, headers):
+        if self.state == self.STATE_INSYNC:
+            self.backlog.append(headers)
+        elif self.state == self.STATE_LISTEN:
+            self.sendHeaders(headers)
+        else:
+            pass
+
 class WebServer(object):
     def __init__(self, db=None):
         self.db_str = db
@@ -23,7 +125,7 @@ class WebServer(object):
 
         self.db = sqlite3.connect(self.db_str)
 
-        self.ws_listeners = set()
+        self.ws_clients = set()
 
         self.create_tables()
         self.setup_routes()
@@ -70,6 +172,38 @@ class WebServer(object):
         }
 
         return header
+        
+    def make_header_from_entry(self, dct):
+        header = dict(dct)
+        header["_id"] = header["id"]
+        header["_rev"] = header["rev"]
+
+        del header["id"]
+        del header["rev"]
+
+        return header
+
+    def prepare_docs(self, c):
+        columns = list(map(lambda x: x[0], c.description))
+
+        for x in c.fetchall():
+            hit = dict(zip(columns, x))
+
+            body = hit["body"]
+            del hit["body"]
+            body = json.loads(body)
+            body["_header"] = self.make_header_from_entry(hit)
+
+            yield body
+
+    def prepare_headers(self, c):
+        columns = list(map(lambda x: x[0], c.description))
+
+        for x in c.fetchall():
+            hit = dict(zip(columns, x))
+            hit = self.make_header_from_entry(hit)
+
+            yield hit
 
     def direct_transactional_upload(self, bodydoc_generator):
         headers = []
@@ -122,11 +256,6 @@ class WebServer(object):
         def index():
             bottle.redirect("/static/index.html")
 
-        @app.post('/update/<id>')
-        def update(id):
-            print "post", id
-            pass
-
         @app.get("/info")
         def info():
             c = self.db.cursor()
@@ -154,26 +283,11 @@ class WebServer(object):
 
             return { 'runs': runs }
 
-        def prepare_docs(c):
-            columns = list(map(lambda x: x[0], c.description))
-            hits = []
-
-            for x in c.fetchall():
-                hit = dict(zip(columns, x))
-
-                body = hit["body"]
-                del hit["body"]
-                body = json.loads(body)
-                body["_meta"] = hit
-                hits.append(body)
-
-            return hits
-
         @app.route("/list/run/<run:int>", method=['GET', 'POST'])
         def list_run(run):
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run = ? ORDER BY tag ASC", (run, ))
-            docs = { 'hits': prepare_docs(c) }
+            docs = { 'hits': list(self.prepare_docs(c)) }
             c.close()
             return docs
 
@@ -181,7 +295,7 @@ class WebServer(object):
         def list_stats():
             c = self.db.cursor()
             c.execute("SELECT * FROM Monitoring WHERE run IS NULL ORDER BY tag ASC")
-            docs = { 'hits': prepare_docs(c) }
+            docs = { 'hits': list(self.prepare_docs(c)) }
             c.close()
             return docs
 
@@ -239,17 +353,6 @@ class WebServer(object):
             body = "Process killed, kill exit_code: %d" % r
             return body
 
-        #from geventwebsocket import WebSocketError
-
-        #@bottle.route("/sync")
-        #def sync_headers():
-        #    wsock = request.environ.get('wsgi.websocket')
-        #    if not wsock:
-        #        abort(400, 'Expected WebSocket request.')
-
-        #    # outputs headers from rev $1 to now
-        #    pass
-
         @app.route("/utils/drop_run", method=['POST'])
         def drop_run():
             from bottle import request
@@ -265,46 +368,52 @@ class WebServer(object):
 
             return "Rows deleted for run%08d!" % run
 
-        web_app = self
+        @app.route("/sync")
+        def sync():
+            from bottle import request
+            ws = request.environ.get('wsgi.websocket')
+            if not ws:
+                abort(400, 'Expected WebSocket request.')
+        
+        
+            c = SyncClient(self, ws)
+            log.info("WebSocket connected: %s", c.address)
 
-        # i don't like this interface of websocket
-        from geventwebsocket import WebSocketApplication
+            try:
+                self.ws_clients.add(c)
+                
+                while True:
+                    if c.state == c.STATE_CLOSED:
+                        break
 
-        class SyncApp(WebSocketApplication):
-            def on_open(self):
-                ac = self.ws.handler.active_client
+                    msg = ws.receive()
+                    log.info("Receive")
+                    c.receiveMessage(msg)
+                    log.info("Receive end")
+            except:
+                log.info("WebSocket error", exc_info=True)
+                c.kill("receive exception")
+            finally:
+                c.kill("closed")
 
-                log.info("WebSocket connected: %s", ac.address)
-                web_app.ws_listeners.add(ac)
+                if c in self.ws_clients:
+                    self.ws_clients.remove(c)
 
-            def on_close(self, reason):
-                ac = self.ws.handler.active_client
-
-                log.info("WebSocket disconnected: %s, reason: %s", ac.address, reason)
-                web_app.ws_listeners.remove(ac)
-
-            def on_message(self, msg):
-
-
-                print self.ws.handler.server.clients
-                print dir(self.ws.handler.active_client)
-                sys.stdout.flush()
-                pass
-
-        self.sync_app = SyncApp
+                log.info("WebSocket disconnected: %s, reason: \"%s\"", c.address, c.close_reason)
 
     def update_listeners(self, headers):
+        # it is possible that listeners list will change
+        # in a different greenlet (ie, exit or something)
+
+        # we don't care much because changes to the db 
+        # cannot happen outside this greenlet (and before this function is run)
+
         if len(headers) == 0:
             return
-
-        for client in self.ws_listeners:
-            try:
-                client.ws.send(json.dumps({
-                    'event': 'update_headers',
-                    'headers': headers,
-                }))
-            except:
-                log.warning("Unable to send an update to a WebSocket", exc_info=True)
+    
+        copy = list(self.ws_clients)
+        for client in copy:
+            client.handleUpdate(headers)
 
     def run_greenlet(self, host="0.0.0.0", port=9215, **kwargs):
         from gevent import wsgi, pywsgi, local
@@ -320,16 +429,7 @@ class WebServer(object):
         #listener.listen(15)
 
         listener = (host, port, )
-
-        from geventwebsocket import WebSocketServer, Resource
-        from geventwebsocket.handler import WebSocketHandler
-
-        r = Resource({
-            '/': self.app,
-            '/sync': self.sync_app
-        })
-
-        server = pywsgi.WSGIServer(listener, r, handler_class=WebSocketHandler)
+        server = pywsgi.WSGIServer(listener, self.app, handler_class=WebSocketHandler)
 
         # this is needed for the sync
         self.sync_server = server

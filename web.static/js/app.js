@@ -14,48 +14,49 @@ dqmApp.controller('AlertCtrl', ['$scope', '$window', function ($scope, $window) 
 }]);
 
 dqmApp.controller('ParamsCtrl', ["$scope", "$window", "$location", function ($scope, $window, $location) {
-    var me = this;
+    var me = {};
 
-    this.params = {};
-    this._params = {};
+    me.params = {};
+    me._params = {};
 
-    this.setKey = function (k, v) {
+    me.setKey = function (k, v) {
         $location.search(k, v);
     };
 
-    this.update = function () {
+    me.update = function () {
         var s = $location.search();
 
-        this.params = {};
-        this._params = {};
+        me.params = {};
+        me._params = {};
 
         _.each(s, function (v, k) {
             //console.log("New param:", k, v);
-            this.params[k] = v;
-            this._params[k] = v;
-        }, this);
+            me.params[k] = v;
+            me._params[k] = v;
+        });
     };
 
-    this.navigate = function () {
-        _.each(this.params, function (v, k) {
-            var old = this._params[k];
-            if (old !== v) {
-                //console.log("setting", k, v);
-                this.setKey(k, v);
-            };
-        }, this);
-    };
-
-    this.update();
+    me.update();
 
     $scope.$on("$locationChangeSuccess", function (event) {
         me.update();
     });
+
+    $scope.$watch("ParamsCtrl.params", function () {
+        _.each(me.params, function (v, k) {
+            var old = me._params[k];
+            if (old !== v) {
+                $location.search(k, v).replace();
+            };
+        });
+    }, true);
+
+    $scope.ParamsCtrl = me;
 }]);
 
 dqmApp.controller('NavigationCtrl', [
-    '$scope', '$window', '$location', '$route', '$http', 'DynamicQuery', 'SyncPool',
-    function($scope, $window, $location, $route, $http, DynamicQuery, SyncPool) {
+    '$scope', '$window', '$location', '$route', '$http', 'SyncPool', 'SyncDocument',
+    function($scope, $window, $location, $route, $http, SyncPool, SyncDocument) {
 
     $scope.$route = $route;
 
@@ -63,31 +64,20 @@ dqmApp.controller('NavigationCtrl', [
         $location.path("/" + str);
     };
 
-    $scope.NavigationCtrl = {};
-    $scope.DynamicQuery = DynamicQuery;
     $scope.dqm_number = 2;
-
-    $scope.toJson = function (v) {
-        return angular.toJson(v, true);
-    };
 
     $scope.reverse_log = function (s) {
         return s.split("\n").reverse().join("\n");
     };
 
-    $scope.debug_object = function (c) {
-        console.log("Debug object: ", c);
-        return c;
-    };
-
-    $scope.$watch(function () { return $http.pendingRequests.length; }, function (v) {
-        $scope.NavigationCtrl.http_count = v;
-        $scope.NavigationCtrl.http_state = v?"busy":"ready";
-    });
-
-    $scope.$watch('ParamsCtrl.params.search_interval', function (x) {
-        DynamicQuery.start(x);
-    });
+    //$scope.$watch(function () { return $http.pendingRequests.length; }, function (v) {
+    //    $scope.NavigationCtrl.http_count = v;
+    //    $scope.NavigationCtrl.http_state = v?"busy":"ready";
+    //});
+ 
+    $scope.SyncPool = SyncPool;
+    $scope.SyncDocument = SyncDocument;
+	$scope._ = _;
 }]);
 
 dqmApp.controller('ClusterCtrl', ['$scope', '$http', 'DynamicQuery', function($scope, $http, DynamicQuery) {
@@ -183,163 +173,221 @@ dqmApp.controller('StatsController', ['$scope', 'DynamicQuery', function($scope,
     $scope.StatsCtrl = ctrl;
 }]);
 
-dqmApp.controller('LumiRunCtrl', ['$scope', '$location', '$routeParams', 'DynamicQuery', function($scope, $location, $routeParams, DynamicQuery) {
-	var me = this;
+dqmApp.controller('LumiRunCtrl', ['$scope', '$location', '$routeParams', 'SyncPool', function($scope, $location, $routeParams, SyncPool) {
+    var me = this;
 
-	me.current_run = parseInt($routeParams.run);
-	me.current_run_ = parseInt($routeParams.run);
+    me.runs_dct = {};
+    me.runs = [];
+
+    me.run = null;
+    me.run_dct = {};
 
     me.set_run = function (v) {
         $location.path("/lumi/" + v + "/");
     };
 
-    DynamicQuery.repeated_search("list-runs", "list/runs", null, function (body) {
-        var runs = _.uniq(body.runs);
-        runs.sort();
-        runs.reverse();
+    var set_default = function (dct, key, value) {
+        if (dct[key] === undefined)
+            dct[key] = value;
 
-        me.runs = runs;
-        me.runs_loaded = true;
+        return dct[key];
+    };
 
-		// calculate previous and next runs
-		var fi = function (i) {
-			if (me.runs.length == 0)
-				return null;
+    me.update_run_ptr = function () {
+        var fi = function (i) {
+            if ((me.runs.length == 0) || (i < 0) || (me.runs.length <= i))
+                return null;
 
-			if (i < 0)
-				return null;
+            return me.runs[i];
+        };
 
-			if (me.runs.length <= i)
-				return null;
+        var ci = _.indexOf(me.runs, me.run);
+        me.previous_run = fi(ci + 1);
+        me.next_run = fi(ci - 1);
 
-			return me.runs[i];
+        me.run_dct = me.runs_dct[me.run];
+
+        if (me.run_dct) {
+            // template use per-type-filtering
+            // filter here for the sake of performance
+            me.type_dct = _.groupBy(me.run_dct.items, 'type');
+			me.type_dct_id = _.mapObject(me.type_dct, function (val) {
+				return _.pluck(val, "_id");
+			});
+        } else {
+			me.type_dct = null;
+			me.type_dct_id = null; 
 		}
+    };
 
-		var ci = _.indexOf(me.runs, me.current_run);
-		me.previous_run = fi(ci + 1);
-		me.next_run = fi(ci - 1);
+    me.parse_run_header = function (headers) {
+        _.each(headers, function (head) {
+            if (head.run !== null)
+                me.runs.push(head.run);
+
+            var rd = set_default(me.runs_dct, head.run, {});
+            var items = set_default(rd, 'items', {});
+            items[head["_id"]] = head;
+        });
+
+        me.runs.sort();
+        me.runs = _.uniq(me.runs, true);
+        me.runs.reverse();
+
+        me.update_run_ptr();
+    };
+
+    //me.get_sorted_headers = function 
+
+    SyncPool.subscribe_headers(me.parse_run_header);
+    $scope.$on("$destroy", function () {
+        SyncPool.unsubscribe_headers(me.parse_run_header);
     });
 
-    $scope.$on("$destroy", function () {
-        DynamicQuery.delete_search("list-runs");
+    $scope.$watch("ParamsCtrl.params.run", function (run) {
+        me.run = parseInt(run);
+        me.run_ = parseInt(run);
+        me.update_run_ptr();
     });
 }]);
 
-dqmApp.controller('LumiCtrl', ['$scope', '$http', 'DynamicQuery', '$routeParams', '$modal',
-        function($scope, $http, DynamicQuery, $routeParams, $modal) {
+dqmApp.filter("dqm_exitcode_class", function() {
+    return function (input) {
+		if (!input)
+			return "info";
 
-    var lumi = {
-        run: $routeParams.run
+        // document is a header if it does not have "_header" attribute
+        if ((input.exit_code === undefined) && (input._header === undefined))
+            return "info";
+
+		var ec = input.exit_code;
+		if ((ec === null) || (ec === undefined)) {
+    	    return "success";
+    	} else if ((ec === 0) || (ec === "0")) {
+    	    return "warning";
+    	} else {
+    	    return "danger";
+    	}
     };
+});
 
-    lumi.ec_hide = {};
+dqmApp.filter("dqm_megabytes", function() {
+    return function(input) {
+        var s = input || '';
 
-    lumi.ec_toggle = function (c) {
-        lumi.ec_hide[c] = !(lumi.ec_hide[c]);
+        if (s.indexOf && s.indexOf(" kB") > -1) {
+            s.replace(" kB", "");
+            s = parseInt(s) * 1024;
+        }
+
+        s = (parseInt(s) / 1024 / 1024).toFixed(0) + ' ';
+        s = s + "mb";
+
+        return s;
     };
+});
 
-    $scope.$watch("LumiCtrl.run", function (v) {
-        if (!v)
-            return;
+dqmApp.filter("dqm_lumi_seen", function() {
+    return function (lumi_seen) {
+		if (!lumi_seen)
+			return "null";
 
-        DynamicQuery.repeated_search("lumi-data", "list/run/" + parseInt(v), null, function (body) {
-            lumi.hits = body.hits;
-            lumi.logs = {};
+		var ls = lumi_seen;
+    	var skeys = _.keys(ls);
+    	skeys.sort();
 
-            // this block sorts the lumiSeen (originally, it's a dictionary,
-            // but we want to see it as a list)
-            try {
-                _.each(lumi.hits, function (hit) {
-                    var lines = [];
-                    var ls = hit.extra.lumi_seen;
-                    var skeys = _.keys(ls);
-                    skeys.sort();
+    	var sorted = _.map(skeys, function (key) {
+    	    // key is "lumi00032"
+    	    return "[" + key.substring(4) + "]: " + ls[key];
+    	});
 
-                    hit.$sortedLumi = _.map(skeys, function (key) {
-                        // key is "lumi00032"
-                        return "[" + key.substring(4) + "]: " + ls[key];
-                    });
-
-                    if (skeys.length) {
-                        hit.$lastLumi = parseInt(skeys[skeys.length - 1].substring(4));
-                    }
-                });
-            } catch (e) {
-                console.log("Error", e);
-            }
-
-            // pick out the log entry
-            // so it does not polute "source" button output
-            _.each(lumi.hits, function (hit) {
-                if (hit.extra && hit.extra.stdlog) {
-                    var log = hit.extra.stdlog;
-                    lumi.logs[hit._id] = log;
-
-                    delete hit.extra.stdlog;
-                }
-            });
-
-            // parse exit code
-            try {
-                var timestamps = [];
-                _.each(lumi.hits, function (hit) {
-                    // filter by exit code
-                    var ec = hit.exit_code;
-
-                    if ((ec === null) || (ec === undefined)) {
-                        hit.$ec_class = "success";
-                    } else if ((ec === 0) || (ec === "0")) {
-                        hit.$ec_class = "warning";
-                    } else {
-                        hit.$ec_class = "danger";
-                    }
-                });
-            } catch (e) {
-                console.log("Error", e);
-            }
-
-            // remove aux/not cmsRun entries
-            var groups = _.groupBy(lumi.hits, "type");
-            lumi.hits = groups["dqm-source-state"] || [];
-
-            if (groups["dqm-timestamps"]) {
-                lumi.timestamps_doc = groups["dqm-timestamps"][0];
-            }
-        });
-
-    });
-
-    $scope.$on("$destroy", function () {
-        DynamicQuery.delete_search("lumi-data");
-    });
-
-    lumi.openKillDialog = function (hit) {
-        var instance = $modal.open({
-            templateUrl: 'templates/modalKillLumi.html',
-            controller: 'SimpleDataDialogCtrl',
-            scope: $scope,
-            resolve: {
-                data: function () {
-                    return { hit: hit };
-                }
-            }
-        });
-
-        instance.result.then(function (ret) {
-            var body = { pid: hit.pid, signal: ret.signal };
-            var p = $http.post("/utils/kill_proc/" + hit._id, body);
-
-            p.then(function (resp) {
-                $scope.AlertCtrl.addAlert({ type: 'success', strong: "Success!", msg: resp.data });
-            }, function (resp) {
-                $scope.AlertCtrl.addAlert({ type: 'danger', strong: "Failure!", msg: resp.data });
-            });
-        }, function () {
-            // aborted, do nothing
-        });
+		return sorted.join("\n");
     };
+});
 
-    $scope.LumiCtrl = lumi;
+dqmApp.controller('LumiCtrl', ['$scope', '$modal', '$attrs',
+        function($scope, $modal, $attrs) {
+
+	var me = this;
+
+
+    //var lumi = {
+    //    run: $routeParams.run
+    //};
+
+    //lumi.ec_hide = {};
+    //lumi.ec_toggle = function (c) {
+    //    lumi.ec_hide[c] = !(lumi.ec_hide[c]);
+    //};
+
+    //$scope.$watch("LumiCtrl.run", function (v) {
+    //    if (!v)
+    //        return;
+
+    //    DynamicQuery.repeated_search("lumi-data", "list/run/" + parseInt(v), null, function (body) {
+    //        lumi.hits = body.hits;
+    //        lumi.logs = {};
+
+    //        // this block sorts the lumiSeen (originally, it's a dictionary,
+    //        // but we want to see it as a list)
+    //        try {
+    //            _.each(lumi.hits, function (hit) {
+    //                var lines = [];
+    //                var ls = hit.extra.lumi_seen;
+    //                var skeys = _.keys(ls);
+    //                skeys.sort();
+
+    //                hit.$sortedLumi = _.map(skeys, function (key) {
+    //                    // key is "lumi00032"
+    //                    return "[" + key.substring(4) + "]: " + ls[key];
+    //                });
+
+    //                if (skeys.length) {
+    //                    hit.$lastLumi = parseInt(skeys[skeys.length - 1].substring(4));
+    //                }
+    //            });
+    //        } catch (e) {
+    //            console.log("Error", e);
+    //        }
+
+    //        // pick out the log entry
+    //        // so it does not polute "source" button output
+    //        _.each(lumi.hits, function (hit) {
+    //            if (hit.extra && hit.extra.stdlog) {
+    //                var log = hit.extra.stdlog;
+    //                lumi.logs[hit._id] = log;
+
+    //                delete hit.extra.stdlog;
+    //            }
+    //        });
+
+
+
+    //lumi.openKillDialog = function (hit) {
+    //    var instance = $modal.open({
+    //        templateUrl: 'templates/modalKillLumi.html',
+    //        controller: 'SimpleDataDialogCtrl',
+    //        scope: $scope,
+    //        resolve: {
+    //            data: function () {
+    //                return { hit: hit };
+    //            }
+    //        }
+    //    });
+
+    //    instance.result.then(function (ret) {
+    //        var body = { pid: hit.pid, signal: ret.signal };
+    //        var p = $http.post("/utils/kill_proc/" + hit._id, body);
+
+    //        p.then(function (resp) {
+    //            $scope.AlertCtrl.addAlert({ type: 'success', strong: "Success!", msg: resp.data });
+    //        }, function (resp) {
+    //            $scope.AlertCtrl.addAlert({ type: 'danger', strong: "Failure!", msg: resp.data });
+    //        });
+    //    }, function () {
+    //        // aborted, do nothing
+    //    });
+    //};
 }]);
 
 dqmApp.controller('SimpleDataDialogCtrl', function ($scope, $modalInstance, data) {
@@ -401,10 +449,12 @@ dqmApp.factory('DynamicQuery', ['$http', '$window', function ($http, $window) {
     return factory;
 }]);
 
+
+
 dqmApp.directive('prettifySource', function ($window) {
     return {
         restrict: 'A',
-        scope: { 'prettifySource': '@' },
+        scope: { 'prettifySource': '=' },
         link: function (scope, elm, attrs) {
             scope.$watch('prettifySource', function (v) {
                 var lang = attrs.lang || "javascript";
@@ -412,22 +462,6 @@ dqmApp.directive('prettifySource', function ($window) {
                 elm.html(x);
             });
         }
-    };
-});
-
-dqmApp.filter("dqm_megabytes", function() {
-    return function(input) {
-        var s = input || '';
-
-        if (s.indexOf && s.indexOf(" kB") > -1) {
-            s.replace(" kB", "");
-            s = parseInt(s) * 1024;
-        }
-
-        s = (parseInt(s) / 1024 / 1024).toFixed(0) + ' ';
-        s = s + "mb";
-
-        return s;
     };
 });
 
@@ -439,11 +473,13 @@ dqmApp.directive('dqmTimediffField', function ($window) {
             var update = function () {
                 if (! scope.time)
                     return;
+	
+				var ref = scope.diff;
+                if (! ref) {
+					ref = Math.floor(Date.now() / 1000);
+				}
 
-                if (! scope.diff)
-                    return;
-
-                var diff_s = scope.diff - scope.time;
+                var diff_s = ref - scope.time;
 
                 scope.diff_s = diff_s;
                 if (diff_s < 60) {
@@ -465,6 +501,57 @@ dqmApp.directive('dqmTimediffField', function ($window) {
     };
 });
 
+dqmApp.directive('dqmSortedTable', function () {
+    return {
+        restrict: 'A',
+        scope: { 
+            'key': '=',
+            'reversed': '='
+        },
+        controller: function ($scope) {
+            var me = this;
+
+            this.sort_key = "delay";
+            this.sort_reversed = false;
+
+            this.toggleKey = function (key) {
+                if (me.sort_key != key) {
+                    $scope.key = key;
+                } else {
+                    $scope.reversed = !$scope.reversed;
+                }
+            };
+
+            $scope.$watch("key", function (v) {
+                me.sort_key = v;
+            });
+
+            $scope.$watch("reversed", function (v) {
+                me.sort_reversed = v;
+            });
+        }
+    };
+});
+
+dqmApp.directive('dqmSortHeader', function () {
+    return {
+        require: '^dqmSortedTable',
+        restrict: 'A',
+        replace: true,
+        transclude: true,
+        scope: { 'key': "@dqmSortHeader" },
+        link: function(scope, element, attrs, ctrl) {
+            scope.ctrl = ctrl;
+        },
+        template: ""
+            + "<th class='sort-header' ng-class='{ \"sort-key\": ctrl.sort_key == key, \"sort-reversed\": ctrl.sort_reversed }' ng-click='ctrl.toggleKey(key)'>"
+            + "<span ng-transclude />"
+            + "<span ng-show='(ctrl.sort_key == key) && ctrl.sort_reversed' class='sort-carret glyphicon glyphicon-chevron-up'></span>"
+            + "<span ng-show='(ctrl.sort_key == key) && (!ctrl.sort_reversed)' class='sort-carret glyphicon glyphicon-chevron-down'></span>"
+            + "</th>",
+    };
+});
+
 dqmApp.config(function($routeProvider, $locationProvider) {
   $routeProvider
     .when('/lumi/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
@@ -475,24 +562,3 @@ dqmApp.config(function($routeProvider, $locationProvider) {
   // configure html5 to get links working on jsfiddle
   $locationProvider.html5Mode(false);
 });
-
-//var l = window.location;
-//var ws_uri;
-//if (l.protocol === "https:") {
-//    ws_uri = "wss:";
-//} else {
-//    ws_uri = "ws:";
-//}
-//ws_uri += "//" + l.host;
-//ws_uri += "/sync";
-//
-//var ws = new WebSocket(ws_uri);
-//
-//ws.onopen = function() {
-//    ws.send("Hello, world");
-//};
-//ws.onmessage = function (evt) {
-//    alert(evt.data);
-//};
-//
-//console.log(ws_uri);

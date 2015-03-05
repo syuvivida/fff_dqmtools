@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, time
-import logging, json
-import gevent, subprocess, signal, socket
-import collections
-import hashlib
-
-import pwd, grp
-
+import sys, os
 def prepare_imports():
     # minihack
     sys.path.append('/opt/hltd/python')
@@ -19,7 +12,9 @@ def prepare_imports():
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
 
-    sys.path.append(os.path.join(thp, "./lib/gevent_websocket-0.9.3-py2.6.egg"))
+    sys.path.insert(0, os.path.join(thp, "./lib/gevent_websocket-0.9.3-py2.6.egg"))
+    sys.path.insert(0, os.path.join(thp, "./lib/gevent-1.0.1-py2.6-linux-x86_64.egg"))
+    sys.path.insert(0, os.path.join(thp, "./lib/greenlet-0.4.5-py2.6-linux-x86_64.egg"))
 
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
@@ -29,6 +24,13 @@ def prepare_imports():
         sys.dont_write_bytecode = True
 
 prepare_imports()
+
+import time, signal, socket, pwd, grp
+import logging, json
+import subprocess
+import collections
+import hashlib
+import gevent
 
 # calculate installation key, used in locking
 __ipath__ = os.path.dirname(os.path.realpath(__file__))

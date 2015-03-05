@@ -9,6 +9,9 @@ div.alert.runs { overflow: hidden; padding: 5px; }
   margin: 5px 0;
 }
 
+
+a.nowrap { white-space: nowrap; }
+
 div.scheme { float: right; margin-bottom: 15px; }
 
 td.trackLess { background-color: #FCF8E3; }
@@ -16,6 +19,7 @@ td.trackMore { background-color: #DFF0D8; }
 
 td.timestamp { white-space: nowrap; }
 td.actions { white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
 
 td pre.prettyprint { white-space: pre-wrap; }
 
@@ -23,3 +27,6 @@ ul.nodes {  list-style-type: none; padding-left: 30px; }
 
 a.icinga { float: right; margin-right: 15px; }
 div.run-browser a.close-browser { float: right; }
+
+th.sort-header { cursor: pointer; white-space: nowrap; }
+th.sort-header span.sort-carret { padding-left: 5px; }
