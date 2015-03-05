@@ -14,131 +14,27 @@ import bottle
 
 log = logging.getLogger(__name__)
 
+from ws4py.websocket import WebSocket
 
-from geventwebsocket import WebSocketServer, Resource, WebSocketError
-from geventwebsocket.handler import WebSocketHandler
-
-class SyncClient(object):
-    STATE_NONE      = 1
-    STATE_INSYNC    = 2
-    STATE_LISTEN    = 3
-    STATE_CLOSED    = -1
-
-    def __init__(self, app, ws):
-        self.app = app
-        self.ws = ws
-        self.address = ws.handler.client_address
-
-        self.backlog = []
-        self.state = self.STATE_NONE
-        self.close_reason = None
-
-    def kill(self, reason):
-        if self.state == self.STATE_CLOSED:
-            return
-
-        self.state = self.STATE_CLOSED
-        self.close_reason = reason
-    
-    def receiveMessage(self, msg):
-        #print "recv:", self, msg
-        #sys.stdout.flush()
-
-        if msg is None:
-            self.kill("closed")
-            return
-
-        jsn = json.loads(msg)
-        if jsn["event"] == "sync_request":
-            known_rev = jsn["known_rev"]
-            log.info("WebSocket client (%s) requested sync from rev %s", self.address, known_rev)
-            self.state = self.STATE_INSYNC
-
-            # send the current state
-            # if any changes happen during this time
-            # they go into backlog
-            with self.app.db as db:
-                c = db.cursor()
-
-                c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
-                headers = list(self.app.prepare_headers(c))
-                self.backlog.insert(0, headers)
-                c.close()
-
-            while len(self.backlog):
-                h = self.backlog.pop(0)
-                self.sendHeaders(h)
-
-            self.state = self.STATE_LISTEN
-        
-        if jsn["event"] == "request_documents":
-            ids = set(jsn["ids"])
-
-            with self.app.db as db:
-                c = db.cursor()
-
-                IN = "(" + ",".join("?"*len(ids)) + ")"
-                c.execute("SELECT * FROM Monitoring WHERE id IN " + IN, list(ids))
-
-                docs = list(self.app.prepare_docs(c))
-                c.close()
-
-            jsn = json.dumps({
-                'event': 'update_documents',
-                'documents': docs,
-            }).encode("utf8")
-
-            log.info("WebSocket client (%s) requested %d documents (%d bytes)", self.address, len(ids), len(jsn))
-            self.ws.send(jsn)
-
-    def sendHeaders(self, headers):
-        # split sending into multiple messages
-        # this should be extremely helpful with users on bad connections
-        cp = list(headers)
-        max_size = 1000 
-        last_rev = cp[-1]["_rev"]
-
-        while cp:
-            to_send, cp = cp[:max_size], cp[max_size:]
-
-            self.ws.send(json.dumps({
-                'event': 'update_headers',
-                'rev': [to_send[0]["_rev"], to_send[-1]["_rev"]],
-                'sync_to_rev': last_rev,
-                'headers': to_send,
-            }))
-
-    def handleUpdate(self, headers):
-        if self.state == self.STATE_INSYNC:
-            self.backlog.append(headers)
-        elif self.state == self.STATE_LISTEN:
-            self.sendHeaders(headers)
-        else:
-            pass
-
-class WebServer(object):
+class Database(object):
     def __init__(self, db=None):
         self.db_str = db
 
         if not self.db_str:
             self.db_str = ":memory:"
 
-        self.db = sqlite3.connect(self.db_str)
-
-        self.ws_clients = set()
-
-        self.create_tables()
-        self.setup_routes()
+        self.listeners = []
+        self.conn = sqlite3.connect(self.db_str)
 
     def drop_tables(self):
-        cur = self.db.cursor()
+        cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS Monitoring")
 
-        self.db.commit()
+        self.conn.commit()
         cur.close()
 
     def create_tables(self):
-        cur = self.db.cursor()
+        cur = self.conn.cursor()
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS Monitoring (
@@ -157,7 +53,7 @@ class WebServer(object):
         cur.execute("CREATE INDEX IF NOT EXISTS M_run_index ON Monitoring (run)")
         cur.execute("CREATE INDEX IF NOT EXISTS M_rev_index ON Monitoring (rev)")
 
-        self.db.commit()
+        self.conn.commit()
         cur.close()
 
     def make_header(self, doc):
@@ -207,7 +103,7 @@ class WebServer(object):
 
     def direct_transactional_upload(self, bodydoc_generator):
         headers = []
-        with self.db as db:
+        with self.conn as db:
             rev = None
 
             def get_last_rev():
@@ -217,9 +113,12 @@ class WebServer(object):
                 cur.close()
                 return r
 
-            for (body, doc, ) in bodydoc_generator:
+            for body in bodydoc_generator:
                 if rev is None:
                     rev = get_last_rev()
+    
+                # get the document
+                doc = json.loads(body)
 
                 # not that we ever overflow it ...
                 rev = (rev + 1) & ((2**63)-1)
@@ -239,11 +138,144 @@ class WebServer(object):
 
                 headers.append(header)
 
-        self.update_listeners(headers)
+        self.update_headers(headers)
+
+    def add_listener(self, listener):
+        self.listeners.append(listener)
+    
+    def remove_listener(self, listener):
+        self.listeners.remove(listener)
+
+    def update_headers(self, headers):
+        # it is possible that listeners list will change
+        # in a different greenlet (ie, exit or something)
+
+        # we don't care, since client should handle
+        # the websocket errors.
+        if len(headers) == 0:
+            return
+    
+        copy = list(self.listeners)
+        for client in copy:
+            client.updateHeaders(headers)
+
+
+
+class SyncSocket(WebSocket):
+    STATE_NONE      = 1
+    STATE_INSYNC    = 2
+    STATE_LISTEN    = 3
+    STATE_CLOSED    = -1
+
+    def opened(self):
+        self.backlog = []
+        self.state = self.STATE_NONE
+        self.close_reason = None
+
+        self.db.add_listener(self)
+
+        log.info("WebSocket connected: %s", self.peer_address)
+
+    def closed(self, code, reason=None):
+        self.db.remove_listener(self)
+
+        log.info("WebSocket disconnected: %s code=%s reason=%s", self.peer_address, code, reason)
+
+    def kill(self, reason):
+        if self.state == self.STATE_CLOSED:
+            return
+
+        self.state = self.STATE_CLOSED
+        self.close_reason = reason
+
+    def received_message(self, msg):
+        #print "recv:", self, msg, type(msg)
+        #sys.stdout.flush()
+
+        jsn = json.loads(msg.data)
+        if jsn["event"] == "sync_request":
+            known_rev = jsn["known_rev"]
+            self.state = self.STATE_INSYNC
+
+            log.info("WebSocket client (%s) requested sync from rev %s", self.peer_address, known_rev)
+
+            # send the current state
+            # if any changes happen during this time
+            # they go into backlog
+            with self.db.conn as db:
+                c = db.cursor()
+
+                c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
+                headers = list(self.db.prepare_headers(c))
+                self.backlog.insert(0, headers)
+                c.close()
+
+            while len(self.backlog):
+                h = self.backlog.pop(0)
+                self.sendHeaders(h)
+
+            self.state = self.STATE_LISTEN
+
+        if jsn["event"] == "request_documents":
+            ids = set(jsn["ids"])
+
+            with self.db.conn as db:
+                c = db.cursor()
+
+                IN = "(" + ",".join("?"*len(ids)) + ")"
+                c.execute("SELECT * FROM Monitoring WHERE id IN " + IN, list(ids))
+
+                docs = list(self.db.prepare_docs(c))
+                c.close()
+
+            jsn = json.dumps({
+                'event': 'update_documents',
+                'documents': docs,
+            }).encode("utf8")
+
+            log.info("WebSocket client (%s) requested %d documents (%d bytes)", self.peer_address, len(ids), len(jsn))
+            self.send(jsn, False)
+
+    def sendHeaders(self, headers):
+        # split sending into multiple messages
+        # this should be extremely helpful with users on bad connections
+        cp = list(headers)
+        max_size = 1000
+        last_rev = cp[-1]["_rev"]
+
+        while cp:
+            to_send, cp = cp[:max_size], cp[max_size:]
+
+            self.send(json.dumps({
+                'event': 'update_headers',
+                'rev': [to_send[0]["_rev"], to_send[-1]["_rev"]],
+                'sync_to_rev': last_rev,
+                'headers': to_send,
+            }), False)
+
+    def updateHeaders(self, headers):
+        # this cannot throw
+        # or it will kill the input server
+        
+        try:
+            if self.state == self.STATE_INSYNC:
+                self.backlog.append(headers)
+            elif self.state == self.STATE_LISTEN:
+                self.sendHeaders(headers)
+            else:
+                pass
+        except:
+            log.warning("WebSocket error.", exc_info=True)
+
+class WebServer(bottle.Bottle):
+    def __init__(self, db=None):
+        bottle.Bottle.__init__(self)
+
+        self.db = db
+        self.setup_routes()
 
     def setup_routes(self):
-        app = bottle.Bottle()
-        self.app = app
+        app = self
 
         static_path = os.path.dirname(__file__)
         static_path = os.path.join(static_path, "../web.static/")
@@ -258,7 +290,7 @@ class WebServer(object):
 
         @app.get("/info")
         def info():
-            c = self.db.cursor()
+            c = self.db.conn.cursor()
             c.execute("PRAGMA page_size")
             ps = c.fetchone()[0]
             c.execute("PRAGMA page_count")
@@ -271,33 +303,6 @@ class WebServer(object):
                 'cluster': fff_cluster.get_node(),
                 'db_size': ps*pc,
             }
-
-        @app.route("/list/runs", method=['GET', 'POST'])
-        def list_runs():
-            c = self.db.cursor()
-            c.execute("SELECT DISTINCT run FROM Monitoring ORDER BY run DESC")
-
-            runs = map(lambda x: x[0], c.fetchall())
-            runs = filter(lambda x: x is not None, runs)
-            c.close()
-
-            return { 'runs': runs }
-
-        @app.route("/list/run/<run:int>", method=['GET', 'POST'])
-        def list_run(run):
-            c = self.db.cursor()
-            c.execute("SELECT * FROM Monitoring WHERE run = ? ORDER BY tag ASC", (run, ))
-            docs = { 'hits': list(self.prepare_docs(c)) }
-            c.close()
-            return docs
-
-        @app.route("/list/stats", method=['GET', 'POST'])
-        def list_stats():
-            c = self.db.cursor()
-            c.execute("SELECT * FROM Monitoring WHERE run IS NULL ORDER BY tag ASC")
-            docs = { 'hits': list(self.prepare_docs(c)) }
-            c.close()
-            return docs
 
         @app.route("/show/log/<id>", method=['GET', 'POST'])
         def show_log(id):
@@ -368,97 +373,85 @@ class WebServer(object):
 
             return "Rows deleted for run%08d!" % run
 
-        @app.route("/sync")
-        def sync():
-            from bottle import request
-            ws = request.environ.get('wsgi.websocket')
-            if not ws:
-                abort(400, 'Expected WebSocket request.')
-        
-        
-            c = SyncClient(self, ws)
-            log.info("WebSocket connected: %s", c.address)
+def run_web_greenlet(db, host="0.0.0.0", port=9215, **kwargs):
+    listener = (host, port, )
 
-            try:
-                self.ws_clients.add(c)
-                
-                while True:
-                    if c.state == c.STATE_CLOSED:
-                        break
+    from ws4py.server.geventserver import WSGIServer, WebSocketWSGIHandler
+    from ws4py.server.wsgiutils import WebSocketWSGIApplication
+    from ws4py.websocket import EchoWebSocket
 
-                    msg = ws.receive()
-                    log.info("Receive")
-                    c.receiveMessage(msg)
-                    log.info("Receive end")
-            except:
-                log.info("WebSocket error", exc_info=True)
-                c.kill("receive exception")
-            finally:
-                c.kill("closed")
+    SyncSocket.db = db
 
-                if c in self.ws_clients:
-                    self.ws_clients.remove(c)
+    static_app = WebServer(db = db)
+    static_app.mount('/sync', WebSocketWSGIApplication(handler_cls = SyncSocket))
 
-                log.info("WebSocket disconnected: %s, reason: \"%s\"", c.address, c.close_reason)
+    server = WSGIServer(listener, static_app)
 
-    def update_listeners(self, headers):
-        # it is possible that listeners list will change
-        # in a different greenlet (ie, exit or something)
+    log.info("Using db: %s." % (db.db_str))
+    log.info("Started web server at [%s]:%d" % (host, port))
+    log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
 
-        # we don't care much because changes to the db 
-        # cannot happen outside this greenlet (and before this function is run)
+    server.serve_forever()
 
-        if len(headers) == 0:
-            return
-    
-        copy = list(self.ws_clients)
-        for client in copy:
-            client.handleUpdate(headers)
+import gevent
+import struct
 
-    def run_greenlet(self, host="0.0.0.0", port=9215, **kwargs):
-        from gevent import wsgi, pywsgi, local
-        #if not self.options.pop('fast', None): wsgi = pywsgi
+def run_socket_greenlet(db, sock):
+    log.info("Started input listener: %s", sock)
 
-        ## this was for the ipv6 support, but it does not work with websockets
-        ## need a new version of gevent, which is not yet in slc
+    def recvall(sock, count):
+        buf = b''
+        while count:
+            r = sock.recv(count)
+            if not r: return None
+            buf += r 
+            count -= len(r)
 
-        #addr = socket.getaddrinfo(host, port, socket.AF_INET6, 0, socket.SOL_TCP)
-        #listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        #listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #listener.bind(addr[0][-1])
-        #listener.listen(15)
+        return buf
 
-        listener = (host, port, )
-        server = pywsgi.WSGIServer(listener, self.app, handler_class=WebSocketHandler)
+    def message_loop(cli_sock):
+        while True:
+            msg_size = recvall(cli_sock, 16)
+            if msg_size is None: return
 
-        # this is needed for the sync
-        self.sync_server = server
+            msg_size = struct.unpack("!Q", msg_size.decode("hex"))[0]
+            body = recvall(cli_sock, msg_size)
+            if body is None: return
 
-        log.info("Using db: %s." % (self.db_str))
-        log.info("Started web server at [%s]:%d" % (host, port))
-        log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
+            yield body
 
-        server.serve_forever()
+    def handle_conn(cli_sock):
+        try:
+            # log.info("Accepted input connection: %s", cli_sock)
+
+            gen = message_loop(cli_sock)
+            db.direct_transactional_upload(gen)
+        finally:
+            cli_sock.close()
+
+    sock.listen(15)
+    while True:
+        cli, addr = sock.accept()
+        gevent.spawn(handle_conn, cli)
 
 @fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
 def __run__(opts, **kwargs):
     global log
     log = kwargs["logger"]
+    sock = kwargs["lock_socket"]
 
-    import gevent
-
-    db = opts["web.db"]
+    db_string = opts["web.db"]
     port = opts["web.port"]
-    path = opts["path"]
+
+    db = Database(db = db_string)
 
     fweb = WebServer(db = db)
-    fmon = fff_filemonitor.FileMonitor(path = path, fweb = fweb, log = log)
 
-    fwt = gevent.spawn(lambda: fweb.run_greenlet(port = port))
-    fmt = gevent.spawn(lambda: fmon.run_greenlet())
+    fwt = gevent.spawn(run_web_greenlet, db, port = port)
+    fsl = gevent.spawn(run_socket_greenlet, db, sock)
 
-    gevent.joinall([fwt, fmt], raise_error=True)
+    gevent.joinall([fwt, fsl], raise_error=True)
 
 if __name__ == "__main__":
     print "unrecable"

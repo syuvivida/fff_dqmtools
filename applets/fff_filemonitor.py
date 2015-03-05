@@ -6,6 +6,10 @@ import stat
 import logging
 import json
 import subprocess
+import socket
+import struct
+
+import fff_dqmtools
 
 def atomic_read_delete(fp):
     import os, stat, fcntl, errno
@@ -62,9 +66,8 @@ def atomic_create_write(fp, body):
     os.rename(tmp_fp, fp)
 
 class FileMonitor(object):
-    def __init__(self, path, log, fweb=None):
+    def __init__(self, path, log):
         self.path = path
-        self.fweb = fweb
         self.log = log
 
         try:
@@ -113,29 +116,42 @@ class FileMonitor(object):
 
             self.log.info("Uploading: %s", fp)
             try:
-                json_text = atomic_read_delete(fp)
-                document = json.loads(json_text)
+                body = atomic_read_delete(fp)
 
-                # this is defined by fff_web.direct_transactional_upload
-                yield (json_text, document, )
+                # this is absolutely unnecessary
+                # but it's really good to detect json errors early
+                _json = json.loads(body)
+
+                yield body
             except:
-                self.log.warning("Failure to upload the document: %s", fp, exc_info=True)
+                self.log.warning("Failure to read the document: %s", fp, exc_info=True)
                 #raise Exception("Please restart.")
 
     def process_dir(self):
-        # now upload
-        if not self.fweb:
-            raise Exception("fff_web is not running, can't inject.")
+        # find the socket and transmit
+        sock_name = fff_dqmtools.get_lock_key("fff_web")
 
-        # this will scan the directory and emit entries
-        bodydoc_generator = self.scan_dir()
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            sock.connect("\0" + sock_name)
+            # self.log.info("Connected: %s", sock.fileno())
 
-        self.fweb.direct_transactional_upload(bodydoc_generator)
+            # this will scan the directory and emit entries
+            bodydoc_generator = self.scan_dir()
+            for body in bodydoc_generator:
+                sock.sendall(struct.pack("!Q", len(body)).encode("hex"))
+                sock.sendall(body)
+
+        except socket.error:
+            self.log.warning("Couldn't upload files to a web instance: %s", sock_name, exc_info=True)
+            return
+        finally:
+            sock.close()
 
     def run_greenlet(self):
         self.process_dir()
 
-        import gevent.select
+        import select
         import _inotify as inotify
         import watcher
 
@@ -147,7 +163,7 @@ class FileMonitor(object):
         fd = w.fileno()
 
         while True:
-            r = gevent.select.select([fd], [], [], timeout=30)
+            r = select.select([fd], [], [], 30)
 
             if len(r[0]) == 0:
                 # timeout
@@ -162,3 +178,12 @@ class FileMonitor(object):
             else:
                 self.log.warning("bad return from select: %s", str(r))
 
+@fff_dqmtools.fork_wrapper(__name__)
+@fff_dqmtools.lock_wrapper
+def __run__(opts, **kwargs):
+    global log
+    log = kwargs["logger"]
+    path = opts["path"]
+
+    fmon = FileMonitor(path = path, log = log)
+    fmon.run_greenlet()

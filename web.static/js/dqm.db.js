@@ -100,6 +100,7 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
                 }));
 
                 me.handle_event(evt);
+                $rootScope.$apply();
             };
 
             ws.onclose = function (evt) {
@@ -108,10 +109,12 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
 
                 me.make_state("closed");
                 me.handle_event(evt);
+                $rootScope.$apply();
             };
 
             ws.onerrror = function (evt, reason) {
                 console.log("WebSocket error: ", evt, reason, arguments);
+                $rootScope.$apply();
             };
         };
 

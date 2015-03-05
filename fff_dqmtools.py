@@ -12,9 +12,9 @@ def prepare_imports():
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
 
-    sys.path.insert(0, os.path.join(thp, "./lib/gevent_websocket-0.9.3-py2.6.egg"))
     sys.path.insert(0, os.path.join(thp, "./lib/gevent-1.0.1-py2.6-linux-x86_64.egg"))
     sys.path.insert(0, os.path.join(thp, "./lib/greenlet-0.4.5-py2.6-linux-x86_64.egg"))
+    sys.path.insert(0, os.path.join(thp, "./lib/ws4py-0.3.4-py2.6.egg"))
 
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
@@ -25,7 +25,7 @@ def prepare_imports():
 
 prepare_imports()
 
-import time, signal, socket, pwd, grp
+import time, signal, pwd, grp
 import logging, json
 import subprocess
 import collections
@@ -127,16 +127,20 @@ class Server(object):
 
         gevent.joinall(greenlets, raise_error=True)
 
+def get_lock_key(name):
+    key = __ipkey__
+    return "%s.%s" % (key, name, )
+
 def lock_wrapper(f):
     # decorator which requires applet to get the lock
     # so you can't run multiple instances of it
-    key = __ipkey__
 
     # use a named socket check if we are running
     # this is very clean and atomic and leave no files
     # from: http://stackoverflow.com/a/7758075
     def _socket_lock(pname):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        import gevent.socket as socket
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.bind('\0' + pname)
             return sock
@@ -144,13 +148,14 @@ def lock_wrapper(f):
             return None
 
     def wrapper(*kargs, **kwargs):
-        name = kwargs['name']
         logger = kwargs['logger']
-        lkey = "%s:%s" % (key, name, )
 
+        lkey = get_lock_key(kwargs["name"])
         lock = _socket_lock(lkey)
         if lock is None:
             raise Exception("Could not get the lock for %s, path: %s" % (lkey, __ipath__))
+
+        kwargs["lock_socket"] = lock
 
         logger.info("Acquired lock: %s", lkey)
         f(*kargs, **kwargs)
