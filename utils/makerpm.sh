@@ -21,12 +21,11 @@ Source: none
 %define _tmppath $BUILDDIR/build-tmp
 BuildRoot: %{_tmppath}
 BuildArch: x86_64
-BuildRequires: python2-devel >= 2.6
 AutoReqProv: no
 Provides:/opt/fff_dqmtools
 Provides:/etc/logrotate.d/fff_dqmtools
 Provides:/etc/init.d/fff_dqmtools
-Requires:python >= 2.6, python-gevent
+Requires:python >= 2.6
 %description
 DQM tools for FFF.
 %prep
@@ -47,6 +46,7 @@ mkdir -p \$RPM_BUILD_ROOT/var/lib/fff_dqmtools
 
 install -m 755 $SCRIPTDIR/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 install -m 644 $SCRIPTDIR/lib/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
+install -m 644 $SCRIPTDIR/lib/*.egg -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
 install -m 644 $SCRIPTDIR/applets/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets/
 
 cp -r $SCRIPTDIR/misc -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
@@ -60,6 +60,7 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 %defattr(-, root, root, -)
 /opt/fff_dqmtools/*.py
 /opt/fff_dqmtools/lib/*.py
+/opt/fff_dqmtools/lib/*.egg
 /opt/fff_dqmtools/applets/*.py
 
 /opt/fff_dqmtools/misc
@@ -79,8 +80,8 @@ fi
 
 /etc/init.d/fff_dqmtools restart
 
+%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*\$!!g')
 EOF
-### %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --define "_topdir `pwd`/RPMBUILD" -bb fff-dqmtools.spec
