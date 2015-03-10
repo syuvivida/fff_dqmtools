@@ -23,88 +23,80 @@
   </head>
 
   <body role="document">
-    <div ng-controller="AlertCtrl as AlertCtrl">
-      <div ng-controller="ParamsCtrl">
-        <div ng-controller="NavigationCtrl">
-          <div ng-controller="ClusterCtrl">
-            <!-- Fixed navbar -->
-            <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
-              <div class="container">
-                <div class="navbar-header">
-                  <a class="navbar-brand" href="" ng-click="dqm_number = dqm_number + 1">
-                    <span ng-hide="dqm_number == 3">DQM</span>
-                    <span ng-show="dqm_number == 3">DEBUGQM</span>
-                    <sup>{{ dqm_number }}</sup>
-                  </a>
-                </div>
-                <div class="navbar-collapse collapse">
-                  <ul class="nav navbar-nav">
-                    <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
-
-                    <li class="dropdown">
-                      <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
-                        <span class="label label-info">
-                          {{ ClusterCtrl.info_data.hostname }}
-                          [{{ ClusterCtrl.info_data.cluster.label }}]
-                        </span>
-                      </a>
-
-                      <ul class="dropdown-menu" role="menu">
-                        <li><a>{{ ClusterCtrl.info_data.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
-                        <li class="divider"></li>
-
-                        <li ng-repeat="(k,v) in ClusterCtrl.info_data.cluster._all">
-                          <a>{{ k }}:</a>
-                          <ul class="nodes">
-                            <li ng-repeat="host in v">
-                              <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
-                              <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
-                            </li>
-                          </ul>
-                        </li>
-                      </ul>
-                    </li>
-
-                    <li ng-controller="DeleteCtrl">
-                      <a href="" ng-click="DeleteCtrl.openDeleteDialog()"><span class="label label-success">
-                        size: {{ ClusterCtrl.info_data.db_size | dqm_megabytes }}
-                      </span></a>
-                    </li>
-
-                  </ul>
-
-                  <ul class="nav navbar-nav pull-right">
-                    <li class="dropdown">
-                      <a href="" class="dropdown-toggle nowrap" data-toggle="dropdown" role="button" aria-expanded="false">
-                        <span class="label label-{{ SyncPool.lowest_conn.state_class }}">
-                          {{ SyncPool.lowest_conn.state_string }}
-                        </span>
-                        <span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>
-                      </a>
-
-                      <ul class="dropdown-menu" role="menu">
-                        <li ng-repeat="(k, conn) in SyncPool._sync_conn">
-                            <a> {{ k }}: <strong>{{ conn.state_string }}</strong></a>
-                        </li>
-                      </ul>
-                    </li>
-                  </ul>
-
-                </div><!--/.nav-collapse -->
-              </div>
-            </div><!-- naxbar -->
-
-            <div class="container theme-showcase" role="main">
-              <alert ng-repeat="alert in AlertCtrl.alerts" type="{{ alert.type }}" close="AlertCtrl.closeAlert($index)">
-                <strong ng-show="alert.strong">{{ alert.strong }}</strong>
-                {{ alert.msg }}
-              </alert>
-              <div ng-view></div>
-            </div>
+    <div ng-controller="NavigationCtrl as NavigationCtrl">
+      <!-- Fixed navbar -->
+      <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+        <div class="container">
+          <div class="navbar-header">
+            <a class="navbar-brand" href="" ng-click="dqm_number = dqm_number + 1">
+              <span ng-hide="dqm_number == 3">DQM</span>
+              <span ng-show="dqm_number == 3">DEBUGDQM</span>
+              <sup>{{ dqm_number }}</sup>
+            </a>
           </div>
-        </div> <!-- navigation controller -->
-      </div> <!-- params controller -->
-    </div> <!-- alert controller -->
+          <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
+
+              <li class="dropdown">
+                <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+                  <span class="label label-info">
+                    {{ NavigationCtrl.cluster_info.hostname }}
+                    [{{ NavigationCtrl.cluster_info.cluster.label }}]
+                  </span>
+                </a>
+
+                <ul class="dropdown-menu" role="menu">
+                  <li><a>{{ NavigationCtrl.cluster_info.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
+                  <li class="divider"></li>
+
+                  <li ng-repeat="(k,v) in NavigationCtrl.cluster_info.cluster._all">
+                    <a>{{ k }}:</a>
+                    <ul class="nodes">
+                      <li ng-repeat="host in v">
+                        <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
+                        <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+
+              <li>
+                <a href=""><span class="label label-success">
+                  size: {{ NavigationCtrl.cluster_info.db_size | dqm_megabytes | number:2 }} mb
+                </span></a>
+              </li>
+
+            </ul>
+
+            <ul class="nav navbar-nav pull-right">
+              <li class="dropdown">
+                <a href="" class="dropdown-toggle nowrap" data-toggle="dropdown" role="button" aria-expanded="false">
+                  <span class="label label-{{ SyncPool.lowest_conn.state_class }}">
+                    {{ SyncPool.lowest_conn.state_string }}
+                  </span>
+                  <span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>
+                </a>
+
+                <ul class="dropdown-menu" role="menu">
+                  <li ng-repeat="(k, conn) in SyncPool._sync_conn">
+                      <a> {{ k }}: <strong>{{ conn.state_string }}</strong></a>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div><!--/.nav-collapse -->
+
+        </div> <!-- container -->
+      </div><!-- navbar -->
+
+      <div class="container theme-showcase" role="main">
+        <div alert-browser></div>
+        <div ng-view></div>
+      </div>
+
+    </div> <!-- navigation controller -->
 
     <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
     <script src="external/jquery.min.js"></script>
@@ -125,6 +117,7 @@
     <script src="js/dqm.ui.js"></script>
     <script src="js/dqm.db.js"></script>
     <script src="js/dqm.graph.js"></script>
+    <script src="js/dqm.utils.js"></script>
     <script src="js/app.js"></script>
 
   </body>

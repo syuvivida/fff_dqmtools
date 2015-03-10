@@ -90,7 +90,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
     return {
         restrict: 'E',
-        scope: { 'data': '=', 'width': '@', 'height': '@' },
+        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=" },
         link: function (scope, elm, attrs) {
             var width = parseInt(scope.width);
             var height = parseInt(scope.height);
@@ -143,6 +143,18 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 .axisLabel("Delay (s)")
                 .tickFormat(d3.format('.01f'));
 
+			var setData = function () {
+				var v = scope.showAll;
+
+				if (v) {
+					scope.graph_data = scope.graph_data_full;
+					chart.forceX([0, 1])
+				} else {
+					scope.graph_data = scope.graph_data_100;
+					chart.forceX(null)
+				}
+			};
+
             scope.$watch("data", function (data) {
                 if ((!data) || (!data.extra) || (!data.extra.streams)) {
 					// we have no data available
@@ -157,7 +169,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
                 // from key:value, make a [value], and key being an entry in value
 
-                var rest = _.map(_.keys(streams), function (k) {
+                var graph_data = _.map(_.keys(streams), function (k) {
                     var lumis = streams[k].lumis;
                     var mtimes = streams[k].mtimes;
 
@@ -183,7 +195,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
                             'start_offset': start_offset,
                             'delay': delay,
-                            'size': 100,
+                            'size': 1,
                             'shape': "circle",
                         }
                     });
@@ -192,7 +204,24 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                     return e;
                 });
 
-                scope.graph_data = rest;
+				// get the max lumi number
+                var max_lumi = _.max(_.map(graph_data, function (e) {
+					if (e["values"])
+						return e["values"][e["values"].length - 1].lumi;
+				}));
+				var min_lumi = max_lumi - 100;
+
+                var graph_data_100 = _.map(graph_data, function (e) {
+					var copy = _.clone(e);
+					copy["values"] = _.filter(e["values"], function (e) { return e.lumi >= min_lumi; });
+
+					return copy;
+				});
+
+
+				scope.graph_data_full = graph_data;
+				scope.graph_data_100 = graph_data_100;
+				setData();
             });
 
             scope.$watch("graph_data", function (data) {
@@ -207,6 +236,8 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 svg.datum(datum).call(chart);
                 chart.update();
             });
+
+			scope.$watch("showAll", setData);
         }
     };
 });

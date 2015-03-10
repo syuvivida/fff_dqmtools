@@ -28,6 +28,10 @@ class Database(object):
         self.listeners = []
         self.conn = sqlite3.connect(self.db_str)
 
+        # create the header cache for now
+        self.header_cache = None
+        self.get_headers()
+
     def drop_tables(self):
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS Monitoring")
@@ -103,8 +107,19 @@ class Database(object):
 
             yield hit
 
+    def get_headers(self, reload=False):
+        if self.header_cache is None or reload:
+            with self.conn as db:
+                c = db.cursor()
+                c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
+                self.header_cache = list(self.prepare_headers(c))
+                c.close()
+
+        return self.header_cache
+
+
     def direct_transactional_upload(self, bodydoc_generator):
-        headers = []
+        headers = [] # this is used to notify websockets
         with self.conn as db:
             rev = None
 
@@ -138,6 +153,7 @@ class Database(object):
                     body,
                 ))
 
+                self.header_cache.append(header)
                 headers.append(header)
 
         self.update_headers(headers)
@@ -160,8 +176,6 @@ class Database(object):
         copy = list(self.listeners)
         for client in copy:
             client.updateHeaders(headers)
-
-
 
 class SyncSocket(WebSocket):
     STATE_NONE      = 1
@@ -204,14 +218,7 @@ class SyncSocket(WebSocket):
             # send the current state
             # if any changes happen during this time
             # they go into backlog
-            with self.db.conn as db:
-                c = db.cursor()
-
-                c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
-                headers = list(self.db.prepare_headers(c))
-                self.backlog.insert(0, headers)
-                c.close()
-
+            self.backlog.insert(0, self.db.get_headers())
             while len(self.backlog):
                 h = self.backlog.pop(0)
                 self.sendHeaders(h)
@@ -277,33 +284,6 @@ class WebServer(bottle.Bottle):
         self.setup_routes()
 
 
-        self.header_date = time.time()
-        self.header_cache = None
-        self.header_cache_gz = None
-
-    def make_headers(self):
-        if self.header_cache_gz is not None:
-            age = time.time() - self.header_date
-            if age < 3600:
-                return
-
-        with self.db.conn as db:
-            c = db.cursor()
-            c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
-            headers = list(self.db.prepare_headers(c))
-            c.close()
-
-        self.header_date = time.time()
-        self.header_cache = json.dumps({ 'headers': headers })
-
-        s = StringIO.StringIO()
-        f = gzip.GzipFile(fileobj=s, mode='w')
-        f.write(self.header_cache)
-        f.flush()
-        f.close()
-
-        self.header_cache_gz = s.getvalue()
-
     def setup_routes(self):
         app = self
 
@@ -334,26 +314,6 @@ class WebServer(bottle.Bottle):
                 'db_size': ps*pc,
             }
 
-        @app.route("/show/log/<id>", method=['GET', 'POST'])
-        def show_log(id):
-            c = self.db.conn.cursor()
-            c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
-            doc = c.fetchone()
-            c.close()
-
-            b = json.loads(doc[0])
-            fn = b["stdout_fn"]
-            fn = os.path.realpath(fn)
-
-            allowed = ["/var/log/hltd/pid/"]
-            for p in allowed:
-                if os.path.commonprefix([fn, p]) == p:
-                    relative = os.path.relpath(fn, p)
-                    #print "in allowed", p, r
-                    return bottle.static_file(relative, root=p, mimetype="text/plain")
-
-            raise bottle.HTTPError(500, "Log path not found.")
-
         @app.route("/get/<id>", method=['GET', 'POST'])
         def get_id(id):
             # check if id known to us
@@ -371,13 +331,22 @@ class WebServer(bottle.Bottle):
         @app.get("/headers/cached/")
         def header_cache():
             from bottle import request, response
-            self.make_headers()
+            headers = self.db.get_headers()
+            body = json.dumps({ 'headers': headers })
 
+            response.content_type = 'application/json'
             if 'gzip' in request.headers.get('Accept-Encoding', []):
                 response.add_header("Content-Encoding", "gzip")
-                return self.header_cache_gz
+
+                s = StringIO.StringIO()
+                f = gzip.GzipFile(fileobj=s, mode='w')
+                f.write(body)
+                f.flush()
+                f.close()
+
+                return f.getvalue()
             else:
-                return self.header_cache
+                return body
 
         @app.route("/utils/kill_proc/<id>", method=['POST'])
         def kill_proc(id):
@@ -412,20 +381,38 @@ class WebServer(bottle.Bottle):
             body = "Process killed, kill exit_code: %d" % r
             return body
 
-        @app.route("/utils/drop_run", method=['POST'])
-        def drop_run():
+        @app.route("/utils/drop_ids", method=['POST'])
+        def drop_ids():
             from bottle import request
             data = json.loads(request.body.read())
-            run = int(data["run"])
+            ids = data["ids"]
 
-            # check if id known to us
-            c = self.db.cursor()
-            c.execute("DELETE FROM Monitoring WHERE run = ?", (run, ))
+            with self.db.conn as db:
+                for id in ids:
+                    db.execute("DELETE FROM Monitoring WHERE id= ?", (id, ))
+
+            self.db.get_headers(reload=True)
+            return "Deleted %s rows!" % len(ids)
+
+        @app.route("/utils/show_log/<id>", method=['GET', 'POST'])
+        def show_log(id):
+            c = self.db.conn.cursor()
+            c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
             doc = c.fetchone()
             c.close()
-            self.db.commit()
 
-            return "Rows deleted for run%08d!" % run
+            b = json.loads(doc[0])
+            fn = b["stdout_fn"]
+            fn = os.path.realpath(fn)
+
+            allowed = ["/var/log/hltd/pid/"]
+            for p in allowed:
+                if os.path.commonprefix([fn, p]) == p:
+                    relative = os.path.relpath(fn, p)
+                    #print "in allowed", p, r
+                    return bottle.static_file(relative, root=p, mimetype="text/plain")
+
+
 
 def run_web_greenlet(db, host="0.0.0.0", port=9215, **kwargs):
     listener = (host, port, )

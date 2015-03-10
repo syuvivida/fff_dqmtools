@@ -1,10 +1,10 @@
 <div class="modal-header">
-  <h3 class="modal-title">Kill {{ data.hit.tag }}?</h3>
+  <h3 class="modal-title">Kill {{ data.doc.tag }}?</h3>
 </div>
-<div class="modal-body" ng-init="kill_signal = 15">
+<div class="modal-body" ng-init="kill_signal = '15'">
   <p> The process you are killing has the id:</p>
-  <pre>{{ data.hit._id }} </pre>
-  <p>Please type in the pid number  ({{ data.hit.pid }}) in order to confirm.</p>
+  <pre>{{ data.doc._id }} </pre>
+  <p>Please type in the pid number  ({{ data.doc.pid }}) in order to confirm.</p>
   <div>
     <form class="form-inline">
       <div class="form-group">
@@ -22,6 +22,6 @@
   </div>
 </div>
 <div class="modal-footer">
-  <button class="btn btn-primary" ng-disabled="kill_pid != data.hit.pid" ng-click="$close({ signal: kill_signal })">OK</button>
+  <button class="btn btn-primary" ng-disabled="kill_pid != data.doc.pid" ng-click="$close({ signal: kill_signal })">OK</button>
   <button class="btn btn-warning" ng-click="$dismiss('cancel')">Cancel</button>
 </div>

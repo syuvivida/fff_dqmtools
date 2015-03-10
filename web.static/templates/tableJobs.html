@@ -1,5 +1,5 @@
 <div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.type_dct_id['dqm-source-state']">
-  <table class="table hide-actions" dqm-sorted-table="" key="ParamsCtrl.params.lumiKey" reversed="ParamsCtrl.params.lumiReversed" path="sortPath">
+  <table class="table hide-actions" dqm-sorted-table="" key="LocParams.p.sortKey" path="sortPath">
     <thead>
       <tr>
         <th dqm-sort-header="timestamp" path="_header.timestamp">Timestamp</th>
@@ -7,7 +7,7 @@
         <th dqm-sort-header="hostname">Hostname</th>
         <th dqm-sort-header="pid">Pid</th>
         <th dqm-sort-header="exit_code">State</th>
-        <th dqm-sort-header="tag">Tag</th>
+        <th dqm-sort-header="tag" default-key="true">Tag</th>
 
         <th dqm-sort-header="cmssw_lumi" path="cmssw_lumi | dqm_int">LS</th>
         <th dqm-sort-header="rss" path="extra.ps_info.VmRSS | dqm_megabytes">RSS</th>
@@ -21,7 +21,7 @@
     </tbody>
 
     <tbody>
-      <tr ng-repeat-start="doc in (documents | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
+      <tr ng-repeat-start="doc in (documents | dqm_exitcode_filter:LocParams.p.filterJobs | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
         <td class="nowrap">
           {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
         </td>
@@ -34,7 +34,9 @@
             {{ doc.exit_code }}
           </span>
           <span ng-show="doc.exit_code == undefined">
-            <a ng-show="dqm_number == 3 " ng-click="LumiCtrl.openKillDialog(doc)" class="hover-hide btn btn-default btn-xs btn-success">kill</a>
+            <span ng-if="dqm_number == 3" ng-controller="UtilsCtrl">
+              <a ng-click="openKillDialog(doc)" class="btn btn-default btn-xs btn-success">kill</a>
+            </span>
             <span ng-show="dqm_number != 3">R</span>
           </span>
         </td>
@@ -69,7 +71,7 @@
 
           <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
           <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
-          <a ng-href="http://{{ doc.hostname }}:9215/show/log/{{ doc._id }}" target="_blank" class="hover-hide btn btn-default btn-xs">full log</a>
+          <a ng-href="http://{{ doc.hostname }}:9215/utils/show_log/{{ doc._id }}" target="_blank" class="hover-hide btn btn-default btn-xs">full log</a>
 
         </td>
       </tr>
