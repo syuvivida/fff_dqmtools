@@ -1,4 +1,4 @@
-var mod = angular.module('dqmGraphApp', []);
+var mod = angular.module('dqm.graph', []);
 
 mod.directive('dqmMemoryGraph', function ($window) {
     // the "drawing" code is taken from http://bl.ocks.org/mbostock/4063423

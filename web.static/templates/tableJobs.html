@@ -1,0 +1,116 @@
+<div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.type_dct_id['dqm-source-state']">
+  <table class="table hide-actions" dqm-sorted-table="" key="ParamsCtrl.params.lumiKey" reversed="ParamsCtrl.params.lumiReversed" path="sortPath">
+    <thead>
+      <tr>
+        <th dqm-sort-header="timestamp" path="_header.timestamp">Timestamp</th>
+        <th>Delay</th>
+        <th dqm-sort-header="hostname">Hostname</th>
+        <th dqm-sort-header="pid">Pid</th>
+        <th dqm-sort-header="exit_code">State</th>
+        <th dqm-sort-header="tag">Tag</th>
+
+        <th dqm-sort-header="cmssw_lumi" path="cmssw_lumi | dqm_int">LS</th>
+        <th dqm-sort-header="rss" path="extra.ps_info.VmRSS | dqm_megabytes">RSS</th>
+        <th dqm-sort-header="events_rate" path="events_rate | dqm_int">Total Ev.</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+
+    <tbody ng-hide="LumiRunCtrl.type_dct['dqm-source-state'].length">
+    <tr class="align-center active"><td colspan="100">no data</td></tr>
+    </tbody>
+
+    <tbody>
+      <tr ng-repeat-start="doc in (documents | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
+        <td class="nowrap">
+          {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+        </td>
+        <td class="nowrap"><dqm-timediff-field time="doc._header.timestamp" /></td>
+
+        <td class="nowrap"> {{ doc.hostname }} </td>
+        <td class="nowrap"> {{ doc.pid }} </td>
+        <td class="nowrap">
+          <span ng-hide="doc.exit_code == undefined">
+            {{ doc.exit_code }}
+          </span>
+          <span ng-show="doc.exit_code == undefined">
+            <a ng-show="dqm_number == 3 " ng-click="LumiCtrl.openKillDialog(doc)" class="hover-hide btn btn-default btn-xs btn-success">kill</a>
+            <span ng-show="dqm_number != 3">R</span>
+          </span>
+        </td>
+        <td class="nowrap">
+            {{ doc.tag | dqm_shorten_tag }}
+            <a ng-hide="_show_inline == 'cmd'" ng-click="_show_inline = 'cmd'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
+            <a ng-show="_show_inline == 'cmd'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+        </td>
+
+        <td class="nowrap actions">
+          {{ doc.cmssw_lumi }}
+          <a ng-hide="_show_inline == 'lumi'" ng-click="_show_inline = 'lumi'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
+          <a ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+        </td>
+
+        <td class="nowrap actions">
+          {{ doc.extra.ps_info.VmRSS | dqm_megabytes | number:0 }} mb
+          <a ng-hide="_show_inline == 'ps_info'" ng-click="_show_inline = 'ps_info'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
+          <a ng-show="_show_inline == 'ps_info'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-hide="_show_inline == 'mem_graph'" ng-click="_show_inline = 'mem_graph'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></a>
+          <a ng-show="_show_inline == 'mem_graph'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+        </td>
+
+        <td class="nowrap">
+          <span ng-show="doc.events_total">{{ doc.events_total }} ({{ doc.events_rate }} evt/s)</span>
+          <span ng-hide="doc.events_total">--</span>
+        </td>
+
+        <td class="nowrap">
+          <a ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></a>
+          <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+
+          <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
+          <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-href="http://{{ doc.hostname }}:9215/show/log/{{ doc._id }}" target="_blank" class="hover-hide btn btn-default btn-xs">full log</a>
+
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'log'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre>
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'lumi'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="text">{{ doc.extra.lumi_seen | dqm_lumi_seen }}</pre>
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'ps_info'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="json" prettify-source="doc.extra.ps_info | json"></pre>
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'mem_graph'">
+        <td colspan="100">
+          <dqm-memory-graph height="300" width="800" data="doc.extra.mem_info" />
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'source'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'cmd'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="json" prettify-source="doc.cmdline | json"></pre>
+        </td>
+      </tr>
+
+      <tr ng-repeat-end></tr>
+    </tbody>
+  </table>
+</div> <!-- cached document -->

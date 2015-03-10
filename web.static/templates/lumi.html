@@ -1,166 +1,117 @@
-<div ng-controller="LumiRunCtrl as LumiRunCtrl">
-  <div ng-show="LumiRunCtrl.runs.length"  class="runs alert-success alert run-browser">
+<div ng-controller="LumiRunCtrl">
+  <div ng-show="LumiRunCtrl.runs.length && (!ParamsCtrl.params.hideRunBrowser)" class="runs alert-success alert run-browser">
+    <a class="btn btn-xs close" ng-click="ParamsCtrl.setKey('hideRunBrowser', true)"> &times; </a>
 
-    <span ng-if="! ParamsCtrl.params.showRunBrowser">
-      <a ng-repeat="key in LumiRunCtrl.runs | limitTo:15" class="label-run label label-info" ng-click="ParamsCtrl.setKey('run', key)"> {{ key }} </a>
+    <label>
+      <input type="checkbox" value="true" ng-model="ParamsCtrl.params.trackRun">
+      Track newest (ongoing) run
+    </label>
 
-      <a class="label-run label label-warning"  ng-click="ParamsCtrl.setKey('showRunBrowser', true)"> (click for more) </a>
-    </span>
+    <div ng-hide="ParamsCtrl.params.trackRun">
+      <div class="alert-separator"></div>
 
-    <span ng-if="ParamsCtrl.params.showRunBrowser">
+      <div class="label-run"> Newest:
+        <a ng-repeat="key in LumiRunCtrl.runs | limitTo:15" class="label-run label label-info" ng-click="ParamsCtrl.setKey('run', key)"> {{ key }} </a>
+        <a ng-hide="LumiRunCtrl.runs.length"> no runs! </a>
+      </div>
+
+      <div class="alert-separator"></div>
+
       <form class="form-inline">
         <div class="form-group">
           <input type="text" typeahead="run for run in LumiRunCtrl.runs | filter:$viewValue | limitTo:8"
             class="form-control input-sm" ng-model="LumiRunCtrl.run_">
         </div>
 
-      <button ng-show="LumiRunCtrl.run != LumiRunCtrl.run_" type="submit" class="btn btn-primary btn-sm" ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.run_)"> go! </button>
+        <button ng-show="LumiRunCtrl.run != LumiRunCtrl.run_" type="submit" class="btn btn-primary btn-sm" ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.run_)"> go! </button>
 
-      <button ng-show="LumiRunCtrl.previous_run" class="btn btn-default btn-sm" ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.previous_run)"> previous: {{ LumiRunCtrl.previous_run }}</button>
-      <button ng-show="LumiRunCtrl.next_run" class="btn btn-default btn-sm"     ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.next_run)"> next: {{ LumiRunCtrl.next_run }}</button>
-      <a class="btn btn-warning btn-xs close-browser" ng-click="ParamsCtrl.setKey('showRunBrowser', null)"> (return/hide) </a>
+        <button ng-show="LumiRunCtrl.previous_run" class="btn btn-default btn-sm" ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.previous_run)"> previous: {{ LumiRunCtrl.previous_run }}</button>
+        <button ng-show="LumiRunCtrl.next_run" class="btn btn-default btn-sm"     ng-click="ParamsCtrl.setKey('run', LumiRunCtrl.next_run)"> next: {{ LumiRunCtrl.next_run }}</button>
+
+        <span> (total: {{ LumiRunCtrl.runs.length }} )</span>
       </form>
-
-      <!--span ng-show="LumiRunCtrl.current_run" class="label label-success"> {{ LumiRunCtrl.current_run }} </span>
-      <span ng-hide="LumiRunCtrl.current_run" class="label label-success"> (none) </span-->
-
-    </span>
+    </div>
   </div>
 
-  <div ng-hide="LumiRunCtrl.runs.length" class="runs alert-warning alert">
-    <strong>Warning!</strong> no runs!
+
+
+  <!--div ng-show="ParamsCtrl.params.run" class="page-header">
+    <h2>Run <span class="label label-success">{{ LumiRunCtrl.run }}</span></h2>
   </div>
 
-  <div ng-show="ParamsCtrl.params.run">
+  <div ng-hide="ParamsCtrl.params.run" class="page-header">
+    <h2>Run <span class="label label-success">undefined</span></h2>
+  </div-->
 
-    <div class="page-header">
-      <h2>Run <span class="label label-success">{{ LumiRunCtrl.run }}</span><h2>
-    </div>
+  <div ng-hide="LumiRunCtrl.run">
+    <ol class="breadcrumb">
+      <li>
+        <span class="blue">Run <strong>not selected</strong></span>
+        <a ng-show="ParamsCtrl.params.hideRunBrowser" ng-click="ParamsCtrl.setKey('hideRunBrowser', null)" class="btn btn-info btn-xs">show run browser</a>
+      </li>
+    </ol>
+  </div>
 
-    <div class="page-header">
-      <h3> File delivery graph</h3>
+  <div ng-show="LumiRunCtrl.run">
 
-      <div class="scheme filter">
-        <a ng-hide="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', true)" class="btn btn-info btn-xs">show stream delivery graph</a>
-        <a ng-show="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', null)" class="btn btn-info btn-xs">hide stream delivery graph</a>
-      </div>
-    </div>
+    <ol class="breadcrumb">
+      <li>
+        <span class="blue">Run <strong>{{ LumiRunCtrl.run }}</strong></span>
+        <a ng-show="ParamsCtrl.params.hideRunBrowser" ng-click="ParamsCtrl.setKey('hideRunBrowser', null)" class="btn btn-info btn-xs">show run browser</a>
+      </li>
+      <li>
+        <span class="blue">File delivery graph</span>
+        <a ng-hide="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', true)" class="btn btn-info btn-xs">show</a>
+        <a ng-show="ParamsCtrl.params.showTimestampsGraph" ng-click="ParamsCtrl.setKey('showTimestampsGraph', null)" class="btn btn-warning btn-xs">hide</a>
+      </li>
+    </ol>
 
     <div ng-if="ParamsCtrl.params.showTimestampsGraph">
       <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-timestamps'][0]">
-        <div ng-if="doc"><graph-dqm-timestamps-lumi height="300" width="800" data="doc" /></div>
-        <div ng-if="!doc"><p>Graph not available for this run</p></div>
+        <div ng-if="doc._header && (_.size(doc.extra.streams) != 0)">
+          <graph-dqm-timestamps-lumi height="300" width="800" data="doc" />
+        </div>
+        <div ng-if="doc._header && (_.size(doc.extra.streams) == 0)">
+          <p> No streams were delivered during this run. </p>
+        </div>
+
+        <div ng-show="doc && (!doc._header)"><p> Loading... </p></div>
+        <div ng-show="!doc"><p>Graph not available for this run</p></div>
       </div>
     </div>
 
-    <div class="page-header">
-
-      <h3> Known cmssw jobs</h3>
+    <!--div class="page-header">
       <div class="scheme filter">
         <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.success, 'btn-success': !LumiCtrl.ec_hide.success }" ng-click="LumiCtrl.ec_toggle('success')" class="btn btn-xs">running</a>
         <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.warning, 'btn-warning': !LumiCtrl.ec_hide.warning }" ng-click="LumiCtrl.ec_toggle('warning')" class="btn btn-xs">stopped</a>
         <a ng-class="{ 'btn-default': !!LumiCtrl.ec_hide.danger,  'btn-danger' : !LumiCtrl.ec_hide.danger  }" ng-click="LumiCtrl.ec_toggle('danger')"  class="btn btn-xs">crashed</a>
       </div>
-    </div>
+    </div-->
 
-    <table class="table" ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.type_dct_id['dqm-source-state']">
-      <thead dqm-sorted-table="" key="ParamsCtrl.params.lumiKey", reversed="ParamsCtrl.params.lumiReversed" change="ParamsCtrl.navigate_nostate()">
-        <tr>
-          <th dqm-sort-header="delay">Timestamp</th>
-          <th>Delay</th>
-          <th dqm-sort-header="hostname">Hostname</th>
-          <th dqm-sort-header="pid">Pid</th>
-          <th dqm-sort-header="state">State</th>
-          <th dqm-sort-header="tag">Tag</th>
+    <ol class="breadcrumb">
+      <li>
+        <span class="blue">Run <strong>{{ LumiRunCtrl.run }}</strong></span>
+      </li>
+      <li>
+        <span class="blue">Known cmssw jobs</span>
+        <a ng-hide="ParamsCtrl.params.showJobs" ng-click="ParamsCtrl.setKey('showJobs', true)" class="btn btn-info btn-xs">show</a>
+        <a ng-show="ParamsCtrl.params.showJobs" ng-click="ParamsCtrl.setKey('showJobs', null)" class="btn btn-warning btn-xs">hide</a>
+      </li>
+    </ol>
 
-          <th dqm-sort-header="lumi" class="align-right">Current lumi</th>
-          <th class="align-right">RSS</th>
-          <th class="align-right">Total Ev.</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
+    <div ng-if="ParamsCtrl.params.showJobs" ng-include="'templates/tableJobs.html'"></div>
 
-      <tbody ng-hide="LumiRunCtrl.type_dct['dqm-source-state'].length">
-      <tr class="align-center active"><td colspan="100">no data</td></tr>
-      </tbody>
+  </div>
 
-      <tbody ng-repeat="doc in _.values(documents) track by doc._id">
-        <tr ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
-          <td class="timestamp">
-            {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
-          </td>
-          <td><dqm-timediff-field time="doc._header.timestamp" /></td>
+  <ol class="breadcrumb">
+    <li>
+      <span class="blue">Cluster stats</span>
+      <a ng-hide="ParamsCtrl.params.showStats" ng-click="ParamsCtrl.setKey('showStats', true)" class="btn btn-info btn-xs">show</a>
+      <a ng-show="ParamsCtrl.params.showStats" ng-click="ParamsCtrl.setKey('showStats', null)" class="btn btn-warning btn-xs">hide</a>
+    </li>
+  </ol>
 
-          <td class="nowrap"> {{ doc.hostname }} </td>
-          <td class="nowrap"> {{ doc.pid }} </td>
-          <td class="align-right">
-            <span ng-hide="doc.exit_code == undefined">
-              {{ doc.exit_code }}
-            </span>
-            <span ng-show="doc.exit_code == undefined">
-              <button ng-show="dqm_number == 3 "type="button" ng-click="LumiCtrl.openKillDialog(doc)" class="btn btn-default btn-xs btn-success">kill</button>
-              <span ng-show="dqm_number != 3">running</span>
-            </span>
-          </td>
-          <td> {{ doc.tag }} </td>
-
-          <td class="align-right actions">
-            {{ doc.cmssw_lumi }}
-            <button type="button" ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="btn btn-default btn-xs">log</button>
-            <button type="button" ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
-            <button type="button" ng-hide="_show_inline == 'lumi'" ng-click="_show_inline = 'lumi'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
-            <button type="button" ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
-
-            <a ng-href="http://{{ doc.hostname }}:9215/show/log/{{ doc._id }}" target="_blank" class="btn btn-default btn-xs">full</a>
-          </td>
-
-          <td class="align-right actions">
-            {{ doc.extra.ps_info.VmRSS | dqm_megabytes }}
-            <button type="button" ng-hide="_show_inline == 'ps_info'" ng-click="_show_inline = 'ps_info'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></button>
-            <button type="button" ng-show="_show_inline == 'ps_info'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
-            <button type="button" ng-hide="_show_inline == 'mem_graph'" ng-click="_show_inline = 'mem_graph'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></button>
-            <button type="button" ng-show="_show_inline == 'mem_graph'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
-          </td>
-
-          <td class="align-right actions"><span ng-show="doc.events_total">{{ doc.events_total }} ({{ doc.events_rate }} evt/s)</span></td>
-
-          <td>
-            <button type="button" ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></button>
-            <button type="button" ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
-          </td>
-        </tr>
-
-        <tr ng-if="_show_inline == 'log'">
-          <td colspan="100">
-            <pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre>
-          </td>
-        </tr>
-
-        <tr ng-if="_show_inline == 'lumi'">
-          <td colspan="100">
-            <pre class="prettyprint" lang="text">{{ doc.extra.lumi_seen | dqm_lumi_seen }}</pre>
-          </td>
-        </tr>
-
-        <tr ng-if="_show_inline == 'ps_info'">
-          <td colspan="100">
-            <pre class="prettyprint" lang="json" prettify-source="doc.extra.ps_info | json"></pre>
-          </td>
-        </tr>
-
-        <tr ng-if="_show_inline == 'mem_graph'">
-          <td colspan="100">
-            <dqm-memory-graph height="300" width="800" data="doc.extra.mem_info" />
-          </td>
-        </tr>
-
-        <tr ng-if="_show_inline == 'source'">
-          <td colspan="100">
-            <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
+  <div> 
+    <div ng-if="ParamsCtrl.params.showStats" ng-include="'templates/tableStats.html'"></div>
   </div>
 </div>

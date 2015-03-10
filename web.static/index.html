@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" ng-app="dqmApp">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DQM^2</title>
+    <title>DQM^2{{ $root.title }}</title>
 
     <!-- Bootstrap -->
     <link href="external/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -22,7 +22,7 @@
     <link href="css/main.css" rel="stylesheet">
   </head>
 
-  <body role="document" ng-app="dqmApp">
+  <body role="document">
     <div ng-controller="AlertCtrl as AlertCtrl">
       <div ng-controller="ParamsCtrl">
         <div ng-controller="NavigationCtrl">
@@ -39,7 +39,6 @@
                 </div>
                 <div class="navbar-collapse collapse">
                   <ul class="nav navbar-nav">
-                    <li ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Machines</a></li>
                     <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
 
                     <li class="dropdown">
@@ -93,7 +92,7 @@
 
                 </div><!--/.nav-collapse -->
               </div>
-            </div>
+            </div><!-- naxbar -->
 
             <div class="container theme-showcase" role="main">
               <alert ng-repeat="alert in AlertCtrl.alerts" type="{{ alert.type }}" close="AlertCtrl.closeAlert($index)">
@@ -123,6 +122,7 @@
     <script src="external/d3/d3.js"></script>
     <script src="external/nvd3/nv.d3.js"></script>
 
+    <script src="js/dqm.ui.js"></script>
     <script src="js/dqm.db.js"></script>
     <script src="js/dqm.graph.js"></script>
     <script src="js/app.js"></script>

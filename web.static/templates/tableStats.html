@@ -1,0 +1,72 @@
+<div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.run0_ids">
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Delay</th>
+        <th>Hostname</th>
+        <th>Type</th>
+        <th>Tag</th>
+
+        <th> Disk used </th>
+        <th> Disk free </th>
+
+        <th> Memory used </th>
+        <th> Memory free </th>
+
+        <th>?</th>
+      </tr>
+    </thead>
+
+
+    <tbody ng-hide="LumiRunCtrl.run0_ids.length">
+    <tr class="align-center active"><td colspan="100">no data</td></tr>
+    </tbody>
+
+
+    <tbody ng-repeat="doc in (_.values(documents) | orderBy:'_id') track by doc._id">
+      <tr>
+        <td class="timestamp">
+          {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+        </td>
+        <td><dqm-timediff-field time="doc._header.timestamp" /></td>
+
+        <td class="nowrap"> {{ doc.hostname }} </td>
+        <td class="nowrap"> {{ doc.type }} </td>
+        <td class="nowrap"> {{ doc.tag }} </td>
+
+        <td ng-show="doc.type == 'dqm-diskspace'"> {{ doc.disk_used | dqm_megabytes | number:0 }} ({{ doc | dqm_disk_pc | number:2 }}%)</td>
+        <td ng-show="doc.type == 'dqm-diskspace'"> {{ doc.disk_free | dqm_megabytes | number:0 }} mb. </td>
+        <td ng-hide="doc.type == 'dqm-diskspace'"> -- </td>
+        <td ng-hide="doc.type == 'dqm-diskspace'"> -- </td>
+
+        <td ng-show="doc.type == 'dqm-stats'"> {{ doc.memory_used | dqm_megabytes | number:2 }} mb. </td>
+        <td ng-show="doc.type == 'dqm-stats'"> {{ doc.memory_free | dqm_megabytes | number:2 }} mb. </td>
+        <td ng-hide="doc.type == 'dqm-stats'"> -- </td>
+        <td ng-hide="doc.type == 'dqm-stats'"> -- </td>
+
+        <td class="nowrap">
+          <button type="button" ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></button>
+          <button type="button" ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+
+          <button type="button" ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="btn btn-default btn-xs">log</button>
+          <button type="button" ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+        </td>
+
+      </tr>
+
+      <tr ng-if="_show_inline == 'log'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre>
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'source'">
+        <td colspan="100">
+          <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
+        </td>
+      </tr>
+    </tbody>
+
+  </table>
+</div>

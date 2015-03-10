@@ -4,6 +4,8 @@ import sqlite3
 import os, sys, time
 import socket
 import logging
+import StringIO
+import gzip
 
 import fff_dqmtools
 import fff_cluster
@@ -68,7 +70,7 @@ class Database(object):
         }
 
         return header
-        
+
     def make_header_from_entry(self, dct):
         header = dict(dct)
         header["_id"] = header["id"]
@@ -116,7 +118,7 @@ class Database(object):
             for body in bodydoc_generator:
                 if rev is None:
                     rev = get_last_rev()
-    
+
                 # get the document
                 doc = json.loads(body)
 
@@ -142,7 +144,7 @@ class Database(object):
 
     def add_listener(self, listener):
         self.listeners.append(listener)
-    
+
     def remove_listener(self, listener):
         self.listeners.remove(listener)
 
@@ -154,7 +156,7 @@ class Database(object):
         # the websocket errors.
         if len(headers) == 0:
             return
-    
+
         copy = list(self.listeners)
         for client in copy:
             client.updateHeaders(headers)
@@ -256,7 +258,7 @@ class SyncSocket(WebSocket):
     def updateHeaders(self, headers):
         # this cannot throw
         # or it will kill the input server
-        
+
         try:
             if self.state == self.STATE_INSYNC:
                 self.backlog.append(headers)
@@ -273,6 +275,34 @@ class WebServer(bottle.Bottle):
 
         self.db = db
         self.setup_routes()
+
+
+        self.header_date = time.time()
+        self.header_cache = None
+        self.header_cache_gz = None
+
+    def make_headers(self):
+        if self.header_cache_gz is not None:
+            age = time.time() - self.header_date
+            if age < 3600:
+                return
+
+        with self.db.conn as db:
+            c = db.cursor()
+            c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Monitoring ORDER BY rev ASC")
+            headers = list(self.db.prepare_headers(c))
+            c.close()
+
+        self.header_date = time.time()
+        self.header_cache = json.dumps({ 'headers': headers })
+
+        s = StringIO.StringIO()
+        f = gzip.GzipFile(fileobj=s, mode='w')
+        f.write(self.header_cache)
+        f.flush()
+        f.close()
+
+        self.header_cache_gz = s.getvalue()
 
     def setup_routes(self):
         app = self
@@ -306,7 +336,7 @@ class WebServer(bottle.Bottle):
 
         @app.route("/show/log/<id>", method=['GET', 'POST'])
         def show_log(id):
-            c = self.db.cursor()
+            c = self.db.conn.cursor()
             c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
             doc = c.fetchone()
             c.close()
@@ -324,6 +354,30 @@ class WebServer(bottle.Bottle):
 
             raise bottle.HTTPError(500, "Log path not found.")
 
+        @app.route("/get/<id>", method=['GET', 'POST'])
+        def get_id(id):
+            # check if id known to us
+            with self.db.conn as db:
+                c = db.cursor()
+                c.execute("SELECT * FROM Monitoring WHERE id = ?", (id, ))
+                docs = list(self.db.prepare_docs(c))
+                c.close()
+
+                if len(docs) == 0:
+                    raise bottle.HTTPResponse("Doc id not found.", status=404)
+
+                return docs[0]
+
+        @app.get("/headers/cached/")
+        def header_cache():
+            from bottle import request, response
+            self.make_headers()
+
+            if 'gzip' in request.headers.get('Accept-Encoding', []):
+                response.add_header("Content-Encoding", "gzip")
+                return self.header_cache_gz
+            else:
+                return self.header_cache
 
         @app.route("/utils/kill_proc/<id>", method=['POST'])
         def kill_proc(id):
@@ -331,7 +385,7 @@ class WebServer(bottle.Bottle):
             data = json.loads(request.body.read())
 
             # check if id known to us
-            c = self.db.cursor()
+            c = self.db.conn.cursor()
             c.execute("SELECT body FROM Monitoring WHERE id = ?", (id, ))
             doc = c.fetchone()
             c.close()

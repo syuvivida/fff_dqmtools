@@ -3,7 +3,10 @@ td.align-right, th.align-right { text-align: right; }
 td.align-center, th.align-center, tr.align-center { text-align: center; }
 
 div.alert.runs { overflow: hidden; padding: 5px; }
-.label-run { margin: 5px; float: left; }
+a.label-run { margin: 5px; }
+div.label-run { margin-bottom: 10px; }
+
+div.alert-separator {  margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #5BC0DE; }
 
 .theme-showcase > p > .btn {
   margin: 5px 0;
@@ -17,8 +20,6 @@ div.scheme { float: right; margin-bottom: 15px; }
 td.trackLess { background-color: #FCF8E3; }
 td.trackMore { background-color: #DFF0D8; }
 
-td.timestamp { white-space: nowrap; }
-td.actions { white-space: nowrap; }
 td.nowrap { white-space: nowrap; }
 
 td pre.prettyprint { white-space: pre-wrap; }
@@ -30,3 +31,8 @@ div.run-browser a.close-browser { float: right; }
 
 th.sort-header { cursor: pointer; white-space: nowrap; }
 th.sort-header span.sort-carret { padding-left: 5px; }
+
+table.hide-actions tr:hover a.hover-hide { visibility: visible; }
+table.hide-actions tr a.hover-hide { visibility: hidden; }
+
+ol.breadcrumb span.blue { color: #337AB7; }
