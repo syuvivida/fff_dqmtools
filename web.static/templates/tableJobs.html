@@ -2,7 +2,7 @@
   <table class="table hide-actions" dqm-sorted-table="" key="LocParams.p.sortKey" path="sortPath">
     <thead>
       <tr>
-        <th dqm-sort-header="timestamp" path="_header.timestamp">Timestamp</th>
+        <th dqm-sort-header="timestamp" path="timestamp">Timestamp</th>
         <th>Delay</th>
         <th dqm-sort-header="hostname">Hostname</th>
         <th dqm-sort-header="pid">Pid</th>
@@ -23,9 +23,9 @@
     <tbody>
       <tr ng-repeat-start="doc in (documents | dqm_exitcode_filter:LocParams.p.filterJobs | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
         <td class="nowrap">
-          {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+          {{ doc.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
         </td>
-        <td class="nowrap"><dqm-timediff-field time="doc._header.timestamp" /></td>
+        <td class="nowrap"><dqm-timediff-field time="doc.timestamp" /></td>
 
         <td class="nowrap"> {{ doc.hostname }} </td>
         <td class="nowrap"> {{ doc.pid }} </td>
@@ -106,13 +106,11 @@
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'cmd'">
+      <tr ng-if="_show_inline == 'cmd'" ng-repeat-end>
         <td colspan="100">
           <pre class="prettyprint" lang="json" prettify-source="doc.cmdline | json"></pre>
         </td>
       </tr>
-
-      <tr ng-repeat-end></tr>
     </tbody>
   </table>
 </div> <!-- cached document -->

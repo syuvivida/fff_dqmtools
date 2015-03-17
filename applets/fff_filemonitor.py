@@ -65,6 +65,28 @@ def atomic_create_write(fp, body):
 
     os.rename(tmp_fp, fp)
 
+def socket_upload(lst, log=None):
+    # find the socket and transmit
+    sock_name = fff_dqmtools.get_lock_key("fff_web")
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock_connected = False
+
+    try:
+        for body in lst:
+            if not sock_connected:
+                sock.connect("\0" + sock_name)
+                sock_connected = True
+                #if log: log.info("Connected: %s", sock.fileno())
+
+            sock.sendall(struct.pack("!Q", len(body)).encode("hex"))
+            sock.sendall(body)
+
+    except socket.error:
+        if log: log.warning("Couldn't upload files to a web instance: %s", sock_name, exc_info=True)
+        raise
+    finally:
+        sock.close()
+
 class FileMonitor(object):
     def __init__(self, path, log):
         self.path = path
@@ -105,22 +127,28 @@ class FileMonitor(object):
         else:
             self.log.info("Mountpoint not found and we can't mount.")
 
-    def scan_dir(self):
+    def scan_dir(self, max_count=None):
         lst = os.listdir(self.path)
         for f in lst:
             fp = os.path.join(self.path, f)
+
+            if max_count is not None:
+                if max_count <= 0:
+                    return
+
+                max_count -= 1
 
             fname = os.path.basename(fp)
             if fname.startswith("."): continue
             if not fname.endswith(".jsn"): continue
 
-            self.log.info("Uploading: %s", fp)
+            #self.log.info("Uploading: %s", fp)
             try:
                 body = atomic_read_delete(fp)
 
                 # this is absolutely unnecessary
                 # but it's really good to detect json errors early
-                _json = json.loads(body)
+                #_json = json.loads(body)
 
                 yield body
             except:
@@ -128,25 +156,8 @@ class FileMonitor(object):
                 #raise Exception("Please restart.")
 
     def process_dir(self):
-        # find the socket and transmit
-        sock_name = fff_dqmtools.get_lock_key("fff_web")
-
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        try:
-            sock.connect("\0" + sock_name)
-            # self.log.info("Connected: %s", sock.fileno())
-
-            # this will scan the directory and emit entries
-            bodydoc_generator = self.scan_dir()
-            for body in bodydoc_generator:
-                sock.sendall(struct.pack("!Q", len(body)).encode("hex"))
-                sock.sendall(body)
-
-        except socket.error:
-            self.log.warning("Couldn't upload files to a web instance: %s", sock_name, exc_info=True)
-            return
-        finally:
-            sock.close()
+        bodydoc_generator = self.scan_dir(max_count=150)
+        return socket_upload(bodydoc_generator, self.log)
 
     def run_greenlet(self):
         self.process_dir()

@@ -1,4 +1,4 @@
-var mod = angular.module('dqm.ui', ['ngRoute', 'ui.bootstrap']);
+var mod = angular.module('dqm.ui', ['ngAnimate', 'ngRoute', 'ui.bootstrap']);
 
 mod.factory('Alerts', ['$window', function($window) {
     var me = {};
@@ -132,8 +132,8 @@ mod.filter("dqm_exitcode_class", function() {
         if (!input)
             return "info";
 
-        // document is a header if it does not have "_header" attribute
-        if ((input.exit_code === undefined) && (input._header === undefined))
+        // document is a header if it does not have "$cd_full" attribute (CachedDocumentCtrl)
+        if ((input.exit_code === undefined) && (input.$cd_full === undefined))
             return "info";
 
         var ec = input.exit_code;
@@ -266,7 +266,7 @@ mod.directive('dqmTimediffField', function ($window, $interval) {
             scope.$watch('time', update);
 
             update();
-            var updater = $interval(update, 5000);
+            var updater = $interval(update, 1000);
             scope.$on('$destroy', function() {
                 $interval.cancel(updater);
             });
@@ -359,4 +359,35 @@ mod.directive('dqmSortHeader', function () {
             + "<span ng-show='(ctrl.sort_key == key) && (ctrl.sort_reversed)' class='sort-carret glyphicon glyphicon-chevron-down'></span>"
             + "</th>",
     };
+});
+
+mod.directive('dqmRefresh', function ($interval, $window) {
+	return {
+		restrict: 'A',
+		scope: { 'doc': '=dqmRefresh'},
+		link: function (scope, element, attrs) {
+			element.addClass("dqm-refresh");
+
+			var created = new Date();
+
+			var update = function () {
+				if (element.hasClass("dqm-refresh-on"))
+					return;
+				
+				// first few updates should be ignored
+				if (((new Date()) - created) < 3000)
+					return;
+
+				element.addClass("dqm-refresh-on");
+				element.removeClass("dqm-refresh-off");
+				$window.setTimeout(function () {
+					element.addClass("dqm-refresh-off");
+					element.removeClass("dqm-refresh-on");
+				}, 1000);
+			};
+
+			scope.$watch("doc._rev", update);
+		},
+	};
+
 });

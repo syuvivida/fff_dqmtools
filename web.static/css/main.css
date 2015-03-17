@@ -36,3 +36,18 @@ table.hide-actions tr:hover a.hover-hide { visibility: visible; }
 table.hide-actions tr a.hover-hide { visibility: hidden; }
 
 ol.breadcrumb span.blue { color: #337AB7; }
+
+
+tr.dqm-refresh-on {
+	box-shadow: 0 0 8px rgba(81, 203, 238, 1) inset; 
+}
+
+tr.dqm-refresh-off {
+	-webkit-transition: box-shadow 1s ease-in-out;
+	-moz-transition: box-shadow 1s ease-in-out;
+	-ms-transition: box-shadow 1s ease-in-out;
+	-o-transition: box-shadow 1s ease-in-out;
+	transition: box-shadow 2s ease-in-out;
+
+	box-shadow: none; 
+}

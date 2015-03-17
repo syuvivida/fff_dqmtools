@@ -13,10 +13,11 @@ def call(*kargs, **kwargs):
 
 def install_local(rpm):
     ### main install
-    ##call(["sudo /etc/init.d/fff_dqmtools stop"], shell=True)
-    ##call(["sudo yum -y remove fff-dqmtools"], shell=True)
-    ##call(["sudo rm -frv /opt/fff_dqmtools"], shell=True)
-    ##call(["sudo", "yum", "-y", "install", rpm])
+    call(["sudo /etc/init.d/fff_dqmtools stop"], shell=True)
+    call(["sudo yum -y remove fff-dqmtools"], shell=True)
+    call(["sudo rm -frv /opt/fff_dqmtools"], shell=True)
+    call(["sudo rm -frv /var/lib/fff_dqmtools"], shell=True)
+    call(["sudo", "yum", "-y", "install", rpm])
 
     ### reset init
     ##call(["sudo /sbin/chkconfig --del fff_dqmtools"], shell=True)

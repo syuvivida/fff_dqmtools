@@ -206,6 +206,13 @@ def _select_readlines(fd):
             while len(lbuf) > 1:
                 yield lbuf.pop(0) + "\n"
 
+def _pr_set_deathsig():
+    # ensure the child dies if we are SIGKILLED
+    import ctypes
+    libc = ctypes.CDLL("libc.so.6")
+    PR_SET_PDEATHSIG = 1
+    libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+
 def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     # find the interpreter and the config file
     args = [sys.executable, "-m", module_name]
@@ -223,13 +230,8 @@ def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
         # so do it before setting it
         if wrapper_kwargs.has_key('uid'):
             setuid(wrapper_kwargs["uid"], wrapper_kwargs["gid"])
-
-        # ensure the child dies if we are SIGKILLED
-        import ctypes
-        libc = ctypes.CDLL("libc.so.6")
-        PR_SET_PDEATHSIG = 1
-        libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-
+        
+        _pr_set_deathsig()
 
     proc = subprocess.Popen(args,
         shell = False,
@@ -371,7 +373,7 @@ def detach(logfile, pidfile):
 
 if __name__ == "__main__":
     default_applets = [
-        "fff_web", "fff_selftest", "fff_logcleaner",
+        "fff_web", "fff_selftest", "fff_logcleaner", "fff_filemonitor",
         "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq",
         "analyze_mtime",
     ]
@@ -384,7 +386,7 @@ if __name__ == "__main__":
         "logfile": "/var/log/fff_dqmtools.log",
         "pidfile": "/var/run/fff_dqmtools.pid",
 
-        "web.db": "/var/lib/fff_dqmtools/db.sqlite3",
+        "web.db": "/var/lib/fff_dqmtools/db.v2.sqlite3",
         "web.port": 9215,
 
         "deleter.ramdisk": "/fff/ramdisk/",

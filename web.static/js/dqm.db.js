@@ -1,166 +1,286 @@
 var mod = angular.module('dqm.db', []);
 
-mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $window, $rootScope) {
-    var factory = {};
+// this is the connection object used by this package
+// it should not be used directly, but rather via make_websocket
+var Connection = function (uri) {
+    this.noop = function () {};
+    this.not_implemented  = function () { throw "Method not implemented." };
 
-    factory._sync_conn = {};
+    this.uri = uri;
 
-    factory._sync_header_handlers = [];
-    factory._sync_event_handlers = [];
+    // defines the priorities for connection state
+    // the highest is always displayed
+    this.state_priorities = {
+        'error':  { 'p': 15, 'c': 'danger' },
+        'closed': { 'p': 10, 'c': 'danger' },
+        'open':   { 'p': 6,  'c': 'warning' },
+        'sync':   { 'p': 5,  'c': 'warning' },
+        'live':   { 'p': 1,  'c': 'success' },
 
-    factory._sync_headers = {};
+        // http specific
+        'download':   { 'p': 6,  'c': 'danger' },
+    };
 
-    var Connection = function (ws_uri) {
-        var me = this;
+    // factory-face handlers
+    // should be overriden
+    this.x_onopen    = this.noop;
+    this.x_onmessage = this.noop;
+    this.x_onclose   = this.noop;
+    this.x_onerror   = this.noop;
 
-        this.ws_uri = ws_uri;
-        this.last_ref = null;
-        this.retry_timeout = 5;
-        this.retry_count = 0;
+    // catch-all
+    this.x_onevent   = this.noop;
 
-        // this is only to track progreess
-        // ideally, it should be outside this service
-        this.make_state = function (st) {
-            me.state_string = st;
-            var slc = st.slice(0, 4);
-            if (slc == "clos") {
-                me.state_priority = 10;
-                me.state_class = "danger";
-            } else if (slc == "open") {
-                me.state_priority = 6;
-                me.state_class = "warning";
-            } else if (slc == "insy") {
-                me.state_priority = 5;
-                me.state_class = "warning";
-            } else if (slc == "sync") {
-                me.state_priority = 1;
-                me.state_class = "success";
-            } else {
-                throw "Unknown state (" + slc + ")";
-            }
+    // this is for displaying stuff
+    // should not be used as a state machine
+    this.make_state = function (state, description) {
+        this.state = state;
 
-            var c = _.values(factory._sync_conn);
-            c = _.sortBy(c, "state_priority");
-
-            factory.lowest_conn = c[0];
+        if (description) {
+            this.state_string = state + ": " + description;
+        } else {
+            this.state_string = state;
         }
 
-        this.handle_event = function (evt) {
-            _.each(factory._sync_event_handlers, function (handler) {
-                handler(evt, me);
-            });
-        };
-
-        this.reopen = function () {
-            console.log("Created connection: ", me.ws_uri, me);
-            me.make_state("open / waiting");
-
-            me.retry_timeout = 1;
-            me.retry_count = me.retry_count + 1;
-
-            var ws = new WebSocket(me.ws_uri);
-            me.ws = ws;
-
-            ws.onmessage = function (evt) {
-                var msg = angular.fromJson(evt.data);
-
-                if (msg["event"] == "update_headers") {
-                    me.last_ref = msg["rev"][1];
-
-                    var headers = _.map(msg["headers"], function (head) {
-                        head["_source"] = me.ws_uri;
-                        factory._sync_headers[head["_id"]] = head;
-
-                        return head;
-                    });
-
-                    _.each(factory._sync_header_handlers, function (handler) {
-                        handler(headers);
-                    });
-
-                    // check progress
-                    if (msg["sync_to_rev"] !== me.last_ref) {
-                        me.make_state("insync: (" + me.last_ref + "/" + msg["sync_to_rev"] + ")");
-                    } else {
-                        me.make_state("synchronized");
-                    }
-                }
-
-                me.handle_event(evt);
-                $rootScope.$apply();
-            };
-
-            ws.onopen = function (evt) {
-                me.make_state("open / insync");
-
-                // request the list of sync objects and subscribe
-                ws.send(angular.toJson({
-                    'event': 'sync_request',
-                    'known_rev': me.last_ref,
-                }));
-
-                me.handle_event(evt);
-                $rootScope.$apply();
-            };
-
-            ws.onclose = function (evt) {
-                console.log("WebSocket died: ", evt, me);
-                me.ws = null;
-
-                me.make_state("closed");
-                me.handle_event(evt);
-                $rootScope.$apply();
-            };
-
-            ws.onerrror = function (evt, reason) {
-                console.log("WebSocket error: ", evt, reason, arguments);
-                $rootScope.$apply();
-            };
-        };
-
-        this.tick = function () {
-            if (me.ws) {
-                return;
-            }
-
-            if (me.retry_timeout > 0) {
-                me.retry_timeout = me.retry_timeout - 1;
-                return
-            }
-
-            me.reopen();
-        };
+        this.state_priority = this.state_priorities[state].p;
+        this.state_class = this.state_priorities[state].c;
     };
 
-    // public api start
-    factory.make_sync_uri = function (host, port) {
-        var l = window.location;
-        var proto = "ws:";
+    this.open = this.not_implemented;
+    this.send = this.not_implemented;
+    this.tick = this.not_implemented;
 
-        if (l.protocol === "https:") proto = "wss:";
-        if (host === undefined) host = l.hostname;
-        if (port === undefined) port = l.port;
+};
 
-        return proto + "//" + host + ":" + port + "/sync";
+Connection.make_ws_uri = function (host, port) {
+    var l = window.location;
+    var proto = "ws:";
+
+    if (l.protocol === "https:") proto = "wss:";
+    if (host === undefined) host = l.hostname;
+    if (port === undefined) port = l.port;
+
+    return proto + "//" + host + ":" + port + "/sync";
+};
+
+Connection.make_websocket = function (uri) {
+    // retry logic: always reconnect (we have 5s ticks)
+    var me = new Connection(uri);
+
+    me.retry_count = 0;
+    me.open = function () {
+        me.retry_count = me.retry_count + 1;
+
+        me.ws = new WebSocket(me.uri);
+        me.ws.onmessage = function (evt) {
+            me.x_onmessage(evt);
+            me.x_onevent(evt);
+        };
+
+        me.ws.onopen = function (evt) {
+            me.make_state("open");
+
+            me.x_onopen(evt);
+            me.x_onevent(evt);
+        };
+
+        me.ws.onclose = function (evt) {
+            console.log("WebSocket died: ", evt, me);
+            me.ws = null;
+            me.make_state("closed", "disconnected");
+
+            me.x_onclose(evt);
+            me.x_onevent(evt);
+        };
+
+        me.ws.onerrror = function (evt, reason) {
+            console.log("WebSocket error: ", evt, reason, arguments);
+
+            me.x_onerror(evt);
+            me.x_onevent(evt);
+        };
+
+        me.make_state("closed", "waiting");
+        console.log("Created connection object: ", me.uri, me);
     };
 
-
-    factory.connect = function (ws_uri) {
-        if (! factory._sync_conn[ws_uri]) {
-            factory._sync_conn[ws_uri] = new Connection(ws_uri);
-            factory._sync_conn[ws_uri].reopen();
+    me.tick = function () {
+        if (me.ws) {
+            // this means we are connected
+            // do nothing
+            return;
         }
 
-        return factory._sync_conn[ws_uri];
+        me.open();
     };
 
-    factory.send_message = function (ws_uri, msg) {
-        var c = factory._sync_conn[ws_uri];
-        if (!c.ws) {
+    me.send = function (msg) {
+        if (! me.ws) {
             throw "WebSocket not connected.";
         }
 
-        c.ws.send(angular.toJson(msg));
+        me.ws.send(msg);
+    };
+
+    return me;
+};
+
+Connection.make_http_uri = function (host, port) {
+    var l = window.location;
+    var proto = l.protocol;
+
+    if (host === undefined) host = l.hostname;
+    if (port === undefined) port = l.port;
+
+    return proto + "//" + host + ":" + port + "/sync_proxy";
+};
+
+Connection.make_http_proxy = function (uri) {
+    // retry logic: always reconnect (we have 5s ticks)
+    var me = new Connection(uri);
+
+    me.tick = me.noop;
+    me.requests = 0;
+
+    me.open = function () {
+        console.log("Created connection object: ", me.uri, me);
+        me.make_state("open", "http mode");
+
+        // time it out, so this happend outside $apply
+        setTimeout(function () {
+            var fake_evt = { 'type': 'open' };
+            me.x_onopen(fake_evt);
+            me.x_onevent(fake_evt);
+        }, 0);
+    };
+
+    me.update_state = function (delta) {
+        me.requests = me.requests + delta;
+
+        if (me.requests) me.make_state("download", "" + me.requests  + "");
+        else me.make_state("open", "http mode");
+    };
+
+    me.send = function (msg) {
+        me.update_state(1);
+
+        jQuery.ajax({
+            url: me.uri,
+            method: 'POST',
+            dataType: 'json',
+            data: angular.toJson({ 'messages': [msg] }),
+            success: function (body) {
+                me.update_state(-1);
+                _.each(body.messages, function (msg) {
+                    var fake_evt = { 'type': 'message', 'data': msg };
+                    me.x_onmessage(fake_evt);
+                    me.x_onevent(fake_evt);
+                });
+
+                me.x_onevent({ 'type': 'notify' });
+            },
+            error: function () {
+                me.update_state(-1);
+                console.log("http2websocket proxy failed", arguments);
+
+                me.x_onerror({ 'type': 'error' });
+                me.x_onevent({ 'type': 'error' });
+            }
+        });
+    };
+
+    return me;
+};
+
+
+mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $window, $rootScope) {
+    var factory = {};
+
+    factory._conn = {};
+    factory._conn_event_handlers = [];
+
+    factory._sync_headers = {};
+    factory._sync_header_handlers = [];
+
+    var max_rev = function () {
+        var args = Array.prototype.slice.call(arguments);
+        return _.reduce(args, function (a, b) {
+            if (a === null) return b;
+            if (b === null) return a;
+
+            if (a > b)
+                return a;
+            else
+                return b;
+        });
+    };
+
+    // interfaces for the Connection
+    factory._handle_connection = function (conn, evt) {
+        conn.send(angular.toJson({
+            'event': 'sync_request',
+            'known_rev': conn._sync_last_rev,
+        }));
+    };
+
+    factory._handle_message = function (conn, evt) {
+        var msg = angular.fromJson(evt.data);
+
+        if (msg["event"] == "update_headers") {
+            conn._sync_last_rev = max_rev(conn._sync_last_rev, msg["rev"][1]);
+
+            var headers = _.map(msg["headers"], function (head) {
+                head["_source"] = conn.uri;
+                factory._sync_headers[head["_id"]] = head;
+                return head;
+            });
+
+            _.each(factory._sync_header_handlers, function (handler) {
+                handler(headers);
+            });
+
+            // check progress
+            // only for websocket
+            if (conn.ws) {
+                if (msg["sync_to_rev"] !== conn._sync_last_rev) {
+                    conn.make_state("sync", "" + msg["total_sent"] + " / " + msg["sync_to_rev"]);
+                } else {
+                    conn.make_state("live");
+                }
+            }
+        }
+    };
+
+    factory._handle_evt = function (conn, evt) {
+        _.each(factory._conn_event_handlers, function (handler) {
+            handler(conn, evt);
+        });
+
+        $rootScope.$apply();
+    };
+
+    factory.connect = function (uri) {
+        var conn;
+
+        if (uri.slice(0, 4) === "http") {
+            conn = Connection.make_http_proxy(uri);
+        } else {
+            conn = Connection.make_websocket(uri);
+        }
+
+        conn._sync_last_rev = null;
+        conn.x_onopen = function (evt) { return factory._handle_connection(conn, evt); };
+        conn.x_onmessage = function (evt) { return factory._handle_message(conn, evt); };
+        conn.x_onevent = function (evt) { return factory._handle_evt(conn, evt); };
+
+
+        factory._conn[uri] = conn;
+        factory._conn[uri].open();
+    };
+
+    factory.send_message = function (uri, msg) {
+        var c = factory._conn[uri];
+        c.send(msg);
     };
 
     factory.subscribe_headers = function (callback) {
@@ -178,23 +298,23 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
 
     // these are the document event handlers used by SyncDocument
     factory.subscribe_events = function (callback) {
-        factory._sync_event_handlers.push(callback);
+        factory._conn_event_handlers.push(callback);
     };
 
     factory.unsubscribe_events = function (callback) {
-        factory._sync_event_handlers =
-            _.filter(factory._sync_event_handlers, function (x) { return x !== callback });
+        factory._conn_event_handlers =
+            _.filter(factory._conn_event_handlers, function (x) { return x !== callback });
     };
 
     // timer for various things
     factory._ti = $window.setInterval(function () {
-        _.each(factory._sync_conn, function (e) {
+        _.each(factory._conn, function (e) {
             e.tick();
         });
-    }, 1*1000);
+    }, 3*1000);
 
-
-    var base_uri = factory.make_sync_uri();
+    var base_uri = Connection.make_ws_uri();
+    //var base_uri = Connection.make_http_uri();
     factory.connect(base_uri);
 
     return factory;
@@ -202,47 +322,12 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
 
 mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (SyncPool, $window, $http, $q) {
     var factory = {};
-
-    // then the request is created it goes to _defer_requests
-    // the timeout is activated (_.defer)
-    // after the timeout passes, we take _defer_requests and make the request
-    // this speeds up things, ie no fetch is user switches too fast
-    // after the request is done, requests appear in factory._requests
     factory._requests = [];
-    factory._defer_requests = [];
-    factory.use_websockets = true;
 
     factory._make_request = function (request) {
-        if (factory.use_websockets) {
-            var source = request["source"];
-            var msg = { 'event': "request_documents", 'ids': [request["id"]] };
-            SyncPool.send_message(source, msg);
-            // reponse is verified in process event
-        } else {
-            var p = $http.post("/get/" + request["id"]);
-            p.then(function (body) {
-                factory._process_response([body.data])
-            }, function (reason) {
-                console.log("fetch failed", reason);
-                factory._process_reject([request], "HTTP Post failed: " + reason);
-            });
-        }
-    };
-
-    factory._process_requests = function () {
-        var request_list = factory._defer_requests;
-        factory._defer_requests = [];
-
-        _.each(request_list, function (r) {
-            factory._requests.push(r);
-
-            try {
-                factory._make_request(r);
-            } catch (e) {
-                //console.error("Failed to send request.", e);
-                factory._process_reject([r], "Failed to send request.");
-            };
-        });
+        var source = request["source"];
+        var msg = { 'event': "request_documents", 'ids': [request["id"]] };
+        SyncPool.send_message(source, angular.toJson(msg));
     };
 
     factory._process_response = function (docs) {
@@ -271,7 +356,7 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
         });
     };
 
-    factory._process_event = function (evt, conn) {
+    factory._process_event = function (conn, evt) {
         if (evt["type"] == "message") {
             var msg = angular.fromJson(evt.data);
             if (msg["event"] !=  "update_documents")
@@ -279,7 +364,7 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
 
             factory._process_response(msg.documents);
         } else if (evt["type"] == "close") {
-            var source = conn.ws_uri;
+            var source = conn.uri;
             var to_rej = _.filter(factory._requests, function (r) { return (r["source"] === source); });
 
             factory._process_reject(to_rej, "WebSocket closed before replying.");
@@ -317,11 +402,13 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
             "defer": deferred,
         };
 
-        factory._defer_requests.push(req);
-
-        if (factory._defer_requests.length == 1) {
-             $window.setTimeout(factory._process_requests, 100);
-        }
+        factory._requests.push(req);
+        try {
+            factory._make_request(req);
+        } catch (e) {
+            //console.error("Failed to send request.", e);
+            factory._process_reject([req], "Failed to send request.");
+        };
 
         var promise = deferred.promise;
         promise._sd_request = req;
@@ -336,7 +423,6 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
         request.defer.reject("Fetch cancelled.");
 
         factory._requests = _.without(factory._requests, request);
-        factory._defer_requests = _.without(factory._defer_requests, request);
     };
 
     // timer for various things
@@ -372,7 +458,7 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
 
         if (doc["$cd_full"]) {
             var header = SyncPool._sync_headers[id];
-            var doc_rev = doc._header._rev;
+            var doc_rev = doc._rev;
             var header_rev = header._rev;
 
             if (doc_rev === header_rev) {
@@ -428,7 +514,7 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
     };
 
     me._update_scope = function () {
-		$scope.documents = _.values(me._doc_map);
+        $scope.documents = _.values(me._doc_map);
 
         $scope.doc = null;
 
@@ -478,3 +564,32 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
         SyncPool.unsubscribe_events(me._process_event);
     });
 }]);
+
+mod.directive('syncState', function ($window, SyncPool) {
+    return {
+        restrict: 'E',
+        scope: {},
+        link: function (scope, elm, attrs) {
+            // this is for displaying
+            var get_state = function () {
+                var lowest_p = undefined;
+                var lowest_c = null;
+
+                _.each(SyncPool._conn, function (c, k) {
+                    if ((lowest_p === undefined) || (lowest_p > c.state_priority)) {
+                        lowest_p = c.state_priority;
+                        lowest_c = c;
+                    }
+                });
+
+                return lowest_c;
+            };
+
+            scope.$watch(get_state, function (conn) {
+                scope.lowest = conn;
+            });
+        },
+        template: '' +
+            '<span class="label label-{{ lowest.state_class }}">{{ lowest.state_string }}</span>'
+    };
+});

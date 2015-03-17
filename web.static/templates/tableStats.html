@@ -1,5 +1,5 @@
 <div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.run0_ids">
-  <table class="table table-striped">
+  <table class="table table-striped hide-actions">
     <thead>
       <tr>
         <th>Timestamp</th>
@@ -18,18 +18,16 @@
       </tr>
     </thead>
 
-
     <tbody ng-hide="LumiRunCtrl.run0_ids.length">
     <tr class="align-center active"><td colspan="100">no data</td></tr>
     </tbody>
 
-
-    <tbody ng-repeat="doc in (_.values(documents) | orderBy:'_id') track by doc._id">
-      <tr>
+    <tbody>
+      <tr ng-repeat-start="doc in (_.values(documents) | orderBy:'_id') track by doc._id" dqm-refresh="doc">
         <td class="timestamp">
-          {{ doc._header.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+          {{ doc.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
         </td>
-        <td><dqm-timediff-field time="doc._header.timestamp" /></td>
+        <td><dqm-timediff-field time="doc.timestamp" /></td>
 
         <td class="nowrap"> {{ doc.hostname }} </td>
         <td class="nowrap"> {{ doc.type }} </td>
@@ -46,11 +44,11 @@
         <td ng-hide="doc.type == 'dqm-stats'"> -- </td>
 
         <td class="nowrap">
-          <button type="button" ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></button>
-          <button type="button" ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+          <a ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></a>
+          <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
 
-          <button type="button" ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="btn btn-default btn-xs">log</button>
-          <button type="button" ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></button>
+          <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
+          <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
       </tr>
@@ -61,7 +59,7 @@
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'source'">
+      <tr ng-if="_show_inline == 'source'" dqm-refresh="doc" ng-repeat-end>
         <td colspan="100">
           <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
         </td>

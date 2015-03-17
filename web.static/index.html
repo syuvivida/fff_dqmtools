@@ -70,18 +70,16 @@
 
             </ul>
 
-            <ul class="nav navbar-nav pull-right">
+            <ul class="nav navbar-nav navbar-right">
               <li class="dropdown">
                 <a href="" class="dropdown-toggle nowrap" data-toggle="dropdown" role="button" aria-expanded="false">
-                  <span class="label label-{{ SyncPool.lowest_conn.state_class }}">
-                    {{ SyncPool.lowest_conn.state_string }}
-                  </span>
+                  <sync-state />
                   <span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>
                 </a>
 
                 <ul class="dropdown-menu" role="menu">
-                  <li ng-repeat="(k, conn) in SyncPool._sync_conn">
-                      <a> {{ k }}: <strong>{{ conn.state_string }}</strong></a>
+                  <li ng-repeat="(k, conn) in SyncPool._conn">
+                      <a> {{ k }} &#x2192;<strong>{{ conn.state_string }}</strong></a>
                   </li>
                 </ul>
               </li>
@@ -105,6 +103,7 @@
 
     <script src="external/angular.js"></script>
     <script src="external/angular-route.js"></script>
+    <script src="external/angular-animate.js"></script>
     <script src="external/ui-bootstrap-tpls-0.12.1.js"></script>
     <script src="external/highlight/highlight.pack.js"></script>
 

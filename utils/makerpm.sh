@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.0.3
+Version: 1.0.4
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -69,6 +69,8 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 
 /etc/logrotate.d/fff_dqmtools
 /etc/init.d/fff_dqmtools
+
+%defattr(-, root, dqmpro, 775)
 /var/lib/fff_dqmtools
 
 %post
