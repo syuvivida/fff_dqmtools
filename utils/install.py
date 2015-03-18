@@ -16,7 +16,7 @@ def install_local(rpm):
     call(["sudo /etc/init.d/fff_dqmtools stop"], shell=True)
     call(["sudo yum -y remove fff-dqmtools"], shell=True)
     call(["sudo rm -frv /opt/fff_dqmtools"], shell=True)
-    call(["sudo rm -frv /var/lib/fff_dqmtools"], shell=True)
+    #call(["sudo rm -frv /var/lib/fff_dqmtools"], shell=True)
     call(["sudo", "yum", "-y", "install", rpm])
 
     ### reset init

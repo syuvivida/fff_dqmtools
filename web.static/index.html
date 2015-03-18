@@ -38,6 +38,9 @@
             <ul class="nav navbar-nav">
               <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
 
+              <li ng-show="LocParams.p.hideRunBrowser"><a href="" ng-click="LocParams.setKey('hideRunBrowser', null)">Browser</a></li>
+              <!--li class="active" ng-hide="LocParams.p.hideRunBrowser"><a href="" ng-click="LocParams.setKey('hideRunBrowser', true)">Browser</a></li-->
+
               <li class="dropdown">
                 <a href="" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
                   <span class="label label-info">
@@ -46,16 +49,24 @@
                   </span>
                 </a>
 
-                <ul class="dropdown-menu" role="menu">
-                  <li><a>{{ NavigationCtrl.cluster_info.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss Z' }}</a></li>
+                <ul class="dropdown-menu cluster" role="menu">
+                  <li><a>Switch hosts:</a></li>
                   <li class="divider"></li>
 
                   <li ng-repeat="(k,v) in NavigationCtrl.cluster_info.cluster._all">
-                    <a>{{ k }}:</a>
+                    <span class="nodes">
+                    {{ k }}
+                    <a ng-hide="NavigationCtrl.check_hosts(v)" class="btn btn-xs btn-primary" href="" ng-click="NavigationCtrl.enable_hosts(v); $event.stopPropagation();">enable</a>
+                    <a ng-show="NavigationCtrl.check_hosts(v)" class="btn btn-xs btn-primary" href="" ng-click="NavigationCtrl.disable_hosts(v); $event.stopPropagation();">disable</a>
+                    :
+                    </span>
+
                     <ul class="nodes">
                       <li ng-repeat="host in v">
+                        <a ng-show="NavigationCtrl.check_hosts([host])" class="btn btn-xs btn-success" href="" ng-click="NavigationCtrl.disable_hosts([host]); $event.stopPropagation();">ws</a>
+                        <a ng-hide="NavigationCtrl.check_hosts([host])" class="btn btn-xs btn-default" href="" ng-click="NavigationCtrl.enable_hosts([host]); $event.stopPropagation();">ws</a>
                         <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
-                        <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[ icinga ]</a>
+                        <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[icinga]</a>
                       </li>
                     </ul>
                   </li>
@@ -63,7 +74,7 @@
               </li>
 
               <li>
-                <a href=""><span class="label label-success">
+                <a><span class="label label-success">
                   size: {{ NavigationCtrl.cluster_info.db_size | dqm_megabytes | number:2 }} mb
                 </span></a>
               </li>
@@ -73,8 +84,7 @@
             <ul class="nav navbar-nav navbar-right">
               <li class="dropdown">
                 <a href="" class="dropdown-toggle nowrap" data-toggle="dropdown" role="button" aria-expanded="false">
-                  <sync-state />
-                  <span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>
+                  <sync-state></sync-state>
                 </a>
 
                 <ul class="dropdown-menu" role="menu">

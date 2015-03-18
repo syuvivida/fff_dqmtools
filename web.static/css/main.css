@@ -5,6 +5,7 @@ td.align-center, th.align-center, tr.align-center { text-align: center; }
 div.alert.runs { overflow: hidden; padding: 5px; }
 a.label-run { margin: 5px; }
 div.label-run { margin-bottom: 10px; }
+span.delay { margin-left: 15px; }
 
 div.alert-separator {  margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #5BC0DE; }
 
@@ -24,8 +25,10 @@ td.nowrap { white-space: nowrap; }
 
 td pre.prettyprint { white-space: pre-wrap; }
 
-ul.nodes {  list-style-type: none; padding-left: 30px; }
+ul.nodes {  list-style-type: none; padding-left: 30px; margin-bottom: 15px; margin-top: 10px; }
+span.nodes { padding-left: 15px; }
 
+ul.dropdown-menu.cluster { width: 20em; }
 a.icinga { float: right; margin-right: 15px; }
 div.run-browser a.close-browser { float: right; }
 
@@ -37,17 +40,32 @@ table.hide-actions tr a.hover-hide { visibility: hidden; }
 
 ol.breadcrumb span.blue { color: #337AB7; }
 
-
-tr.dqm-refresh-on {
-	box-shadow: 0 0 8px rgba(81, 203, 238, 1) inset; 
+.dqm-refresh-on {
+	/* box-shadow: 0 0 8px rgba(81, 203, 238, 1) inset; */
+	-webkit-animation: dqm-refresh-blink 1s ease-in-out;
+	animation: dqm-refresh-blink 1s ease-in-out;
 }
 
-tr.dqm-refresh-off {
+.dqm-refresh-off {
+    /*
 	-webkit-transition: box-shadow 1s ease-in-out;
 	-moz-transition: box-shadow 1s ease-in-out;
 	-ms-transition: box-shadow 1s ease-in-out;
 	-o-transition: box-shadow 1s ease-in-out;
 	transition: box-shadow 2s ease-in-out;
 
-	box-shadow: none; 
+	box-shadow: none;
+	*/
+}
+
+@keyframes dqm-refresh-blink {
+	0%   { opacity: 1; }
+	50%  { opacity: 0.60; }
+	100% { opacity: 1; }
+}
+
+@-webkit-keyframes dqm-refresh-blink {
+	0%   { opacity: 1; }
+	50%  { opacity: 0.60; }
+	100% { opacity: 1; }
 }

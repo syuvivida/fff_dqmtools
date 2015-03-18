@@ -3,7 +3,6 @@
     <thead>
       <tr>
         <th>Timestamp</th>
-        <th>Delay</th>
         <th>Hostname</th>
         <th>Type</th>
         <th>Tag</th>
@@ -26,8 +25,8 @@
       <tr ng-repeat-start="doc in (_.values(documents) | orderBy:'_id') track by doc._id" dqm-refresh="doc">
         <td class="timestamp">
           {{ doc.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+          <dqm-timediff-field time="doc.timestamp" />
         </td>
-        <td><dqm-timediff-field time="doc.timestamp" /></td>
 
         <td class="nowrap"> {{ doc.hostname }} </td>
         <td class="nowrap"> {{ doc.type }} </td>

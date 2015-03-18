@@ -271,7 +271,7 @@ mod.directive('dqmTimediffField', function ($window, $interval) {
                 $interval.cancel(updater);
             });
         },
-        template: '<span class="label label-success" ng-class="diff_class">{{ diff_s | number:0 }}&nbsp;s.</span>'
+        template: '<span class="label label-success delay" ng-class="diff_class">{{ diff_s | number:0 }}</span>'
     };
 });
 
@@ -383,7 +383,7 @@ mod.directive('dqmRefresh', function ($interval, $window) {
 				$window.setTimeout(function () {
 					element.addClass("dqm-refresh-off");
 					element.removeClass("dqm-refresh-on");
-				}, 1000);
+				}, 2000);
 			};
 
 			scope.$watch("doc._rev", update);

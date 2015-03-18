@@ -20,7 +20,7 @@ import fff_cluster
 log = logging.getLogger(__name__)
 
 RunEntry = namedtuple('RunEntry', ["run", "path", "start_time"])
-FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime"])
+FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "evt_processed", "evt_accepted"])
 
 def find_match(re, iter):
     xm = map(re.match, iter)
@@ -66,7 +66,18 @@ def analyze_run_entry(e):
         stream = re.sub(r".jsn$", r"", stream)
         mtime = os.stat(f).st_mtime
 
-        files.append(FileEntry(int(d['ls']), stream, mtime))
+        # read the file contents
+        evt_processed, evt_accepted = [-1, -1]
+        if "EoR" not in f:
+            try:
+                with open(f, "r") as fd:
+                    jsn = json.load(fd).get("data", [-1, -1])
+                    evt_processed = long(jsn[0])
+                    evt_accepted = long(jsn[1])
+            except:
+                log.warning("Crash while reading %s.", f, exc_info=True)
+
+        files.append(FileEntry(int(d['ls']), stream, mtime, evt_processed, evt_accepted))
 
     files.sort()
     return files
@@ -97,10 +108,14 @@ class Analyzer(object):
                 lst = grouped.setdefault(f.stream, {
                     'lumis': [],
                     'mtimes': [],
+                    'evt_processed': [],
+                    'evt_accepted': [],
                 })
 
                 lst['lumis'].append(f.ls)
                 lst['mtimes'].append(f.mtime)
+                lst['evt_processed'].append(f.evt_processed)
+                lst['evt_accepted'].append(f.evt_accepted)
 
             id = "dqm-timestamps-%s-%s-run%d" % (self.hostname, self.app_tag, entry.run)
 

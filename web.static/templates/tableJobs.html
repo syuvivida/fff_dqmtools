@@ -3,7 +3,6 @@
     <thead>
       <tr>
         <th dqm-sort-header="timestamp" path="timestamp">Timestamp</th>
-        <th>Delay</th>
         <th dqm-sort-header="hostname">Hostname</th>
         <th dqm-sort-header="pid">Pid</th>
         <th dqm-sort-header="exit_code">State</th>
@@ -21,11 +20,11 @@
     </tbody>
 
     <tbody>
-      <tr ng-repeat-start="doc in (documents | dqm_exitcode_filter:LocParams.p.filterJobs | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class"> <!-- ng-hide="hit.$ec_class && LumiCtrl.ec_hide[hit.$ec_class]" -->
+      <tr ng-repeat-start="doc in (documents | dqm_exitcode_filter:LocParams.p.filterJobs | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class" dqm-refresh="doc">
         <td class="nowrap">
           {{ doc.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+          <dqm-timediff-field time="doc.timestamp">
         </td>
-        <td class="nowrap"><dqm-timediff-field time="doc.timestamp" /></td>
 
         <td class="nowrap"> {{ doc.hostname }} </td>
         <td class="nowrap"> {{ doc.pid }} </td>
@@ -76,37 +75,37 @@
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'log'">
+      <tr ng-if="_show_inline == 'log'" dqm-refresh="doc">
         <td colspan="100">
           <pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre>
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'lumi'">
+      <tr ng-if="_show_inline == 'lumi'" dqm-refresh="doc">
         <td colspan="100">
           <pre class="prettyprint" lang="text">{{ doc.extra.lumi_seen | dqm_lumi_seen }}</pre>
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'ps_info'">
+      <tr ng-if="_show_inline == 'ps_info'" dqm-refresh="doc">
         <td colspan="100">
           <pre class="prettyprint" lang="json" prettify-source="doc.extra.ps_info | json"></pre>
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'mem_graph'">
+      <tr ng-if="_show_inline == 'mem_graph'" dqm-refresh="doc">
         <td colspan="100">
           <dqm-memory-graph height="300" width="800" data="doc.extra.mem_info" />
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'source'">
+      <tr ng-if="_show_inline == 'source'" dqm-refresh="doc">
         <td colspan="100">
           <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
         </td>
       </tr>
 
-      <tr ng-if="_show_inline == 'cmd'" ng-repeat-end>
+      <tr ng-if="_show_inline == 'cmd'" dqm-refresh="doc" ng-repeat-end>
         <td colspan="100">
           <pre class="prettyprint" lang="json" prettify-source="doc.cmdline | json"></pre>
         </td>

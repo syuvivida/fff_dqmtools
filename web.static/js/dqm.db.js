@@ -3,8 +3,8 @@ var mod = angular.module('dqm.db', []);
 // this is the connection object used by this package
 // it should not be used directly, but rather via make_websocket
 var Connection = function (uri) {
-    this.noop = function () {};
-    this.not_implemented  = function () { throw "Method not implemented." };
+    var noop = function () {};
+    var not_implemented  = function () { throw "Method not implemented." };
 
     this.uri = uri;
 
@@ -23,13 +23,13 @@ var Connection = function (uri) {
 
     // factory-face handlers
     // should be overriden
-    this.x_onopen    = this.noop;
-    this.x_onmessage = this.noop;
-    this.x_onclose   = this.noop;
-    this.x_onerror   = this.noop;
+    this.x_onopen    = noop;
+    this.x_onmessage = noop;
+    this.x_onclose   = noop;
+    this.x_onerror   = noop;
 
     // catch-all
-    this.x_onevent   = this.noop;
+    this.x_onevent   = noop;
 
     // this is for displaying stuff
     // should not be used as a state machine
@@ -46,21 +46,12 @@ var Connection = function (uri) {
         this.state_class = this.state_priorities[state].c;
     };
 
-    this.open = this.not_implemented;
-    this.send = this.not_implemented;
-    this.tick = this.not_implemented;
+    this.open =  not_implemented;
+    this.send =  not_implemented;
+    this.close = not_implemented;
 
-};
+    this.tick = noop;
 
-Connection.make_ws_uri = function (host, port) {
-    var l = window.location;
-    var proto = "ws:";
-
-    if (l.protocol === "https:") proto = "wss:";
-    if (host === undefined) host = l.hostname;
-    if (port === undefined) port = l.port;
-
-    return proto + "//" + host + ":" + port + "/sync";
 };
 
 Connection.make_websocket = function (uri) {
@@ -122,24 +113,23 @@ Connection.make_websocket = function (uri) {
         me.ws.send(msg);
     };
 
+	me.close = function () {
+        if (! me.ws) {
+            console.warning("Tried to disconnect to non-existing WebSocket.");
+        } else {
+			me.ws.close();
+		}
+	};
+
     return me;
 };
 
-Connection.make_http_uri = function (host, port) {
-    var l = window.location;
-    var proto = l.protocol;
 
-    if (host === undefined) host = l.hostname;
-    if (port === undefined) port = l.port;
-
-    return proto + "//" + host + ":" + port + "/sync_proxy";
-};
-
+// unmaintained and untested
 Connection.make_http_proxy = function (uri) {
     // retry logic: always reconnect (we have 5s ticks)
     var me = new Connection(uri);
 
-    me.tick = me.noop;
     me.requests = 0;
 
     me.open = function () {
@@ -189,6 +179,7 @@ Connection.make_http_proxy = function (uri) {
         });
     };
 
+	me.close = function () {};
     return me;
 };
 
@@ -236,7 +227,7 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
             });
 
             _.each(factory._sync_header_handlers, function (handler) {
-                handler(headers);
+                handler(headers, false);
             });
 
             // check progress
@@ -259,6 +250,7 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
         $rootScope.$apply();
     };
 
+	factory.Connection = Connection;
     factory.connect = function (uri) {
         var conn;
 
@@ -278,23 +270,53 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
         factory._conn[uri].open();
     };
 
+	factory.disconnect = function (uri) {
+		var conn = factory._conn[uri];
+		factory._conn[uri] = undefined;
+		delete factory._conn[uri];
+
+		conn.close();
+
+		// we have to delete the headers
+		var keys = _.keys(factory._sync_headers);
+		_.each(keys, function (key) {
+			if (factory._sync_headers[key]._source == uri) {
+				delete factory._sync_headers[key];
+			}
+		});
+
+		factory.force_replay();
+	};
+
+	// used after connection setup to reset listeners
+	factory.force_replay = function () {
+		_.each(factory._sync_header_handlers, function (handler) {
+			factory.replay_headers(handler);
+        });
+	};
+
     factory.send_message = function (uri, msg) {
         var c = factory._conn[uri];
         c.send(msg);
     };
 
+	// subscribe for "headers"
     factory.subscribe_headers = function (callback) {
         factory._sync_header_handlers.push(callback);
 
         // we have to rotate the current buffer to it
-        var headers = _.values(factory._sync_headers);
-        callback(headers);
+		factory.replay_headers(callback);
     };
 
     factory.unsubscribe_headers = function (callback) {
         factory._sync_header_handlers =
             _.filter(factory._sync_header_handlers, function (x) { return x !== callback });
     };
+
+	factory.replay_headers = function (callback) {
+        var headers = _.values(factory._sync_headers);
+        callback(headers, true);
+	};
 
     // these are the document event handlers used by SyncDocument
     factory.subscribe_events = function (callback) {
@@ -312,10 +334,6 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
             e.tick();
         });
     }, 3*1000);
-
-    var base_uri = Connection.make_ws_uri();
-    //var base_uri = Connection.make_http_uri();
-    factory.connect(base_uri);
 
     return factory;
 }]);
@@ -451,13 +469,21 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
     me._refresh_document = function (id) {
         // check if document needs updating
         var doc = me._doc_map[id];
+        var header = SyncPool._sync_headers[id];
+
+		if (header === undefined) {
+			// we are in this state if
+			// connection providing the header is removed
+
+			// it is (temporary) rechable, however we can't really do much
+			return;
+		}
 
         // don't update if the update is in progress
         if (doc["$cd_request"] !== undefined)
             return;
 
         if (doc["$cd_full"]) {
-            var header = SyncPool._sync_headers[id];
             var doc_rev = doc._rev;
             var header_rev = header._rev;
 
@@ -565,31 +591,33 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
     });
 }]);
 
-mod.directive('syncState', function ($window, SyncPool) {
+mod.directive('syncState', function ($window, SyncPool, SyncDocument) {
     return {
         restrict: 'E',
         scope: {},
         link: function (scope, elm, attrs) {
             // this is for displaying
             var get_state = function () {
-                var lowest_p = undefined;
-                var lowest_c = null;
+                var highest_p = undefined;
+                var highest_c = null;
 
                 _.each(SyncPool._conn, function (c, k) {
-                    if ((lowest_p === undefined) || (lowest_p > c.state_priority)) {
-                        lowest_p = c.state_priority;
-                        lowest_c = c;
+                    if ((highest_p === undefined) || (highest_p < c.state_priority)) {
+                        highest_p = c.state_priority;
+                        highest_c = c;
                     }
                 });
 
-                return lowest_c;
+                return highest_c;
             };
 
+			scope.SyncDocument = SyncDocument;
             scope.$watch(get_state, function (conn) {
-                scope.lowest = conn;
+                scope.highest = conn;
             });
         },
         template: '' +
-            '<span class="label label-{{ lowest.state_class }}">{{ lowest.state_string }}</span>'
+            '<span class="label label-{{ highest.state_class }}">{{ highest.state_string }}</span>' +
+            '<span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>'
     };
 });
