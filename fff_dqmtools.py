@@ -403,6 +403,7 @@ if __name__ == "__main__":
 
         "deleter.ramdisk": str,
         "deleter.tag": str,
+        "deleter.fake": bool,
     }
 
     import fff_cluster

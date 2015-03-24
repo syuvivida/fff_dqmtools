@@ -427,7 +427,7 @@ class WebServer(bottle.Bottle):
             # check if id known to us
             c = self.db.conn.cursor()
             c.execute("SELECT body FROM Documents WHERE id = ?", (id, ))
-            doc = self.db.prepare_docs(c)
+            doc = list(self.db.prepare_docs(c))
             c.close()
 
             if not doc:
@@ -471,7 +471,7 @@ class WebServer(bottle.Bottle):
         def show_log(id):
             c = self.db.conn.cursor()
             c.execute("SELECT body FROM Documents WHERE id = ?", (id, ))
-            doc = self.db.prepare_docs(c)
+            doc = list(self.db.prepare_docs(c))
             c.close()
 
             b = doc[0]
@@ -563,7 +563,7 @@ def run_socket_greenlet(db, sock):
 
     def handle_conn(cli_sock):
         try:
-            # log.info("Accepted input connection: %s", cli_sock)
+            log.info("Accepted input connection: %s", cli_sock)
 
             # fetch all the documents before making a transaction
             gen = list(message_loop(cli_sock))

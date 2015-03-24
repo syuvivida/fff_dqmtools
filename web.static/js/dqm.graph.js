@@ -107,7 +107,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 .forceY([0, 60])
                 .forceX([0, 1])
                 .useVoronoi(false)
-                .transitionDuration(350)
+                //.transitionDuration(350)
                 .color(d3.scale.category10().range());
 
             var tformat = function (timestamp) {

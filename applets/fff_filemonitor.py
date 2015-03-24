@@ -58,7 +58,10 @@ def atomic_read_delete(fp):
 def atomic_create_write(fp, body):
     import tempfile
 
-    f = tempfile.NamedTemporaryFile(prefix=fp + ".", suffix=".tmp", delete=False)
+    dir = os.path.dirname(fp)
+    prefix = os.path.basename(fp)
+
+    f = tempfile.NamedTemporaryFile(prefix=prefix + ".", suffix=".tmp", dir=dir, delete=False)
     tmp_fp = f.name
     f.write(body)
     f.close()
@@ -70,22 +73,31 @@ def socket_upload(lst, log=None):
     sock_name = fff_dqmtools.get_lock_key("fff_web")
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock_connected = False
+    count = 0
 
     try:
         for body in lst:
+            # we try to establish a connection (before reading an actual document)
             if not sock_connected:
+                # try connecting first, before uploading
                 sock.connect("\0" + sock_name)
                 sock_connected = True
-                #if log: log.info("Connected: %s", sock.fileno())
+            #if log: log.info("Connected: %s", sock.fileno())
+
+            if not body:
+                continue
 
             sock.sendall(struct.pack("!Q", len(body)).encode("hex"))
             sock.sendall(body)
+            count += 1
 
     except socket.error:
         if log: log.warning("Couldn't upload files to a web instance: %s", sock_name, exc_info=True)
         raise
     finally:
         sock.close()
+
+    return count
 
 class FileMonitor(object):
     def __init__(self, path, log):
@@ -144,6 +156,10 @@ class FileMonitor(object):
 
             #self.log.info("Uploading: %s", fp)
             try:
+                # output a None to let the uploaded know we are seriously
+                # (i am actually serious, it is used for synchronization)
+                yield None
+
                 body = atomic_read_delete(fp)
 
                 # this is absolutely unnecessary
@@ -174,18 +190,26 @@ class FileMonitor(object):
         fd = w.fileno()
 
         while True:
-            r = select.select([fd], [], [], 30)
+            c = self.process_dir()
+
+            # if we have files left, restart
+            # but still flush watcher buf
+            wait_time = 30
+            if c != 0:
+                wait_time = 1
+
+            r = select.select([fd], [], [], wait_time)
 
             if len(r[0]) == 0:
                 # timeout
-                self.process_dir()
+                pass
             elif r[0][0] == fd:
                 # clear the events
                 # this sometimes fails due to a bug in inotify
                 for event in w.read(bufsize=0):
                     pass
 
-                self.process_dir()
+                pass
             else:
                 self.log.warning("bad return from select: %s", str(r))
 

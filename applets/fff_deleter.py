@@ -15,7 +15,7 @@ import fff_dqmtools
 import fff_filemonitor
 import fff_cluster
 
-re_files = re.compile(r"^run(?P<run>\d+)/run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
+re_files = re.compile(r"^run(?P<run>\d+)/(open\/){0,1}run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
 def parse_file_name(rl):
     m = re_files.match(rl)
     if not m:

@@ -157,6 +157,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
         me.next_run = fi(ci - 1);
 
         me.run_dct = me.runs_dct[me.run] || {};
+        me.run_ids = _.pluck(me.run_dct.items, "_id");
 
         // template use per-type-filtering
         me.type_dct = _.groupBy(me.run_dct.items || {}, 'type');

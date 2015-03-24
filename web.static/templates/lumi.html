@@ -41,6 +41,8 @@
     </div>
   </div>
 
+  <!-- this is for non selected runs -->
+  <!-- @TODO not sure if it ever displayed -->
   <div ng-hide="LumiRunCtrl.run">
     <ol class="breadcrumb">
       <li>
@@ -69,8 +71,10 @@
       </li>
     </ol>
 
+    <div ng-if="LocParams.p.showAny" ng-include="'templates/tableAny.html'"></div>
+
     <div ng-if="LocParams.p.showTimestampsGraph">
-      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-timestamps'][0]">
+      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-files'][0]">
         <div dqm-refresh="doc">
           <div ng-if="doc.extra && (_.size(doc.extra.streams) != 0)">
             <graph-dqm-timestamps-lumi height="300" width="800" data="doc" show-all="LocParams.p.tsGraph"/>
