@@ -35,17 +35,17 @@ mod.directive('alertBrowser', ['Alerts', function (Alerts) {
 mod.factory('LocParams', ['$location', '$rootScope', function ($location, $rootScope) {
     var me = {};
 
-	me._value = function (v) {
-		if (v === undefined) {
-			return null;
-		} else if (v === false) {
-			return null;
-		} else if (v === true) {
-			return true;
-		} else {
-			return v;
-		}
-	};
+    me._value = function (v) {
+        if (v === undefined) {
+            return null;
+        } else if (v === false) {
+            return null;
+        } else if (v === true) {
+            return true;
+        } else {
+            return v;
+        }
+    };
 
     me._clear_object = function (obj) {
         for (var k in obj) {
@@ -362,32 +362,32 @@ mod.directive('dqmSortHeader', function () {
 });
 
 mod.directive('dqmRefresh', function ($interval, $window) {
-	return {
-		restrict: 'A',
-		scope: { 'doc': '=dqmRefresh'},
-		link: function (scope, element, attrs) {
-			element.addClass("dqm-refresh");
+    return {
+        restrict: 'A',
+        scope: { 'doc': '=dqmRefresh'},
+        link: function (scope, element, attrs) {
+            element.addClass("dqm-refresh");
 
-			var created = new Date();
+            var created = new Date();
 
-			var update = function () {
-				if (element.hasClass("dqm-refresh-on"))
-					return;
-				
-				// first few updates should be ignored
-				if (((new Date()) - created) < 3000)
-					return;
+            var update = function () {
+                if (element.hasClass("dqm-refresh-on"))
+                    return;
+                
+                // first few updates should be ignored
+                if (((new Date()) - created) < 3000)
+                    return;
 
-				element.addClass("dqm-refresh-on");
-				element.removeClass("dqm-refresh-off");
-				$window.setTimeout(function () {
-					element.addClass("dqm-refresh-off");
-					element.removeClass("dqm-refresh-on");
-				}, 2000);
-			};
+                element.addClass("dqm-refresh-on");
+                element.removeClass("dqm-refresh-off");
+                $window.setTimeout(function () {
+                    element.addClass("dqm-refresh-off");
+                    element.removeClass("dqm-refresh-on");
+                }, 2000);
+            };
 
-			scope.$watch("doc._rev", update);
-		},
-	};
+            scope.$watch("doc._rev", update);
+        },
+    };
 
 });

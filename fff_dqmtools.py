@@ -52,7 +52,7 @@ class LogCaptureHandler(logging.StreamHandler):
         self.setFormatter(self.log_format)
 
         # history buffer
-        self.buffer = collections.deque(maxlen=15*1024)
+        self.buffer = collections.deque(maxlen=1*1024)
 
     def retrieve(self):
         return "\n".join(self.buffer)
@@ -84,19 +84,20 @@ class LogCaptureHandler(logging.StreamHandler):
 class Server(object):
     def __init__(self, opt):
         self.opts = opt
-        self.log_capture = LogCaptureHandler()
 
         self.loggers = {}
 
     def config_log(self, name):
         if not self.loggers.has_key(name):
+            log_capture = LogCaptureHandler()
+
             l = logging.getLogger(name)
-            l.addHandler(self.log_capture)
+            l.addHandler(log_capture)
             l.setLevel(logging.INFO)
 
-            self.loggers[name] = l
+            self.loggers[name] = (l, log_capture)
 
-        return self.loggers[name]
+        return self.loggers[name][0]
 
     def run(self):
         applets = self.opts["applets"]
@@ -114,6 +115,7 @@ class Server(object):
             mod = getattr(_mod_package, applet)
 
             kwargs = {
+                "server": self,
                 "opts": self.opts,
                 "logger": logger,
                 "name": applet,
@@ -375,7 +377,7 @@ if __name__ == "__main__":
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner", "fff_filemonitor",
         "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq",
-        "analyze_mtime",
+        "analyze_files",
     ]
 
     opt = {
@@ -386,7 +388,7 @@ if __name__ == "__main__":
         "logfile": "/var/log/fff_dqmtools.log",
         "pidfile": "/var/run/fff_dqmtools.pid",
 
-        "web.db": "/var/lib/fff_dqmtools/db.v2.sqlite3",
+        "web.db": "/var/lib/fff_dqmtools/db.v3.sqlite3",
         "web.port": 9215,
 
         "deleter.ramdisk": "/fff/ramdisk/",

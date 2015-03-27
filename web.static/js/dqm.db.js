@@ -113,13 +113,13 @@ Connection.make_websocket = function (uri) {
         me.ws.send(msg);
     };
 
-	me.close = function () {
+    me.close = function () {
         if (! me.ws) {
             console.warning("Tried to disconnect to non-existing WebSocket.");
         } else {
-			me.ws.close();
-		}
-	};
+            me.ws.close();
+        }
+    };
 
     return me;
 };
@@ -179,7 +179,7 @@ Connection.make_http_proxy = function (uri) {
         });
     };
 
-	me.close = function () {};
+    me.close = function () {};
     return me;
 };
 
@@ -250,7 +250,7 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
         $rootScope.$apply();
     };
 
-	factory.Connection = Connection;
+    factory.Connection = Connection;
     factory.connect = function (uri) {
         var conn;
 
@@ -270,42 +270,42 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
         factory._conn[uri].open();
     };
 
-	factory.disconnect = function (uri) {
-		var conn = factory._conn[uri];
-		factory._conn[uri] = undefined;
-		delete factory._conn[uri];
+    factory.disconnect = function (uri) {
+        var conn = factory._conn[uri];
+        factory._conn[uri] = undefined;
+        delete factory._conn[uri];
 
-		conn.close();
+        conn.close();
 
-		// we have to delete the headers
-		var keys = _.keys(factory._sync_headers);
-		_.each(keys, function (key) {
-			if (factory._sync_headers[key]._source == uri) {
-				delete factory._sync_headers[key];
-			}
-		});
-
-		factory.force_replay();
-	};
-
-	// used after connection setup to reset listeners
-	factory.force_replay = function () {
-		_.each(factory._sync_header_handlers, function (handler) {
-			factory.replay_headers(handler);
+        // we have to delete the headers
+        var keys = _.keys(factory._sync_headers);
+        _.each(keys, function (key) {
+            if (factory._sync_headers[key]._source == uri) {
+                delete factory._sync_headers[key];
+            }
         });
-	};
+
+        factory.force_replay();
+    };
+
+    // used after connection setup to reset listeners
+    factory.force_replay = function () {
+        _.each(factory._sync_header_handlers, function (handler) {
+            factory.replay_headers(handler);
+        });
+    };
 
     factory.send_message = function (uri, msg) {
         var c = factory._conn[uri];
         c.send(msg);
     };
 
-	// subscribe for "headers"
+    // subscribe for "headers"
     factory.subscribe_headers = function (callback) {
         factory._sync_header_handlers.push(callback);
 
         // we have to rotate the current buffer to it
-		factory.replay_headers(callback);
+        factory.replay_headers(callback);
     };
 
     factory.unsubscribe_headers = function (callback) {
@@ -313,10 +313,10 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
             _.filter(factory._sync_header_handlers, function (x) { return x !== callback });
     };
 
-	factory.replay_headers = function (callback) {
+    factory.replay_headers = function (callback) {
         var headers = _.values(factory._sync_headers);
         callback(headers, true);
-	};
+    };
 
     // these are the document event handlers used by SyncDocument
     factory.subscribe_events = function (callback) {
@@ -460,6 +460,7 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
     }
 
     me._doc_map = {};
+    me._doc_requests = {};
 
     me._enter_document = function (id) {
         // needs to be a clone
@@ -471,16 +472,16 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
         var doc = me._doc_map[id];
         var header = SyncPool._sync_headers[id];
 
-		if (header === undefined) {
-			// we are in this state if
-			// connection providing the header is removed
+        if (header === undefined) {
+            // we are in this state if
+            // connection providing the header is removed
 
-			// it is (temporary) rechable, however we can't really do much
-			return;
-		}
+            // it is (temporary) rechable, however we can't really do much
+            return;
+        }
 
         // don't update if the update is in progress
-        if (doc["$cd_request"] !== undefined)
+        if (me._doc_requests[id] !== undefined)
             return;
 
         if (doc["$cd_full"]) {
@@ -496,7 +497,7 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
         // at this step either doc is not existing or too old
         // create a promise for it
         var p = SyncDocument.fetch(id);
-        doc["$cd_request"] = p;
+        me._doc_requests[id] = p;
 
         // some promises are cancelled, but they still return
         p.then(function (new_doc) {
@@ -508,6 +509,8 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
             new_doc["$cd_full"] = true;
             me._doc_map[id] = new_doc;
             me._update_scope();
+
+            delete me._doc_requests[id];
         }, function (reason) {
             // error callback
             if (reason !== "Fetch cancelled.") {
@@ -516,14 +519,15 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
 
             // delete the marker, so it can be re-requested
             // (if not removed)
-            delete doc["$cd_request"];
+            delete me._doc_requests[id];
         });
     };
 
     me._exit_document = function (id) {
         var doc = me._doc_map[id];
-        if (doc["$cd_request"]) {
-            SyncDocument.cancel(doc["$cd_request"]);
+        if (me._doc_requests[id] !== undefined) {
+            SyncDocument.cancel(me._doc_requests[id]);
+            delete me._doc_requests[id];
         }
 
         delete me._doc_map[id];
@@ -611,7 +615,7 @@ mod.directive('syncState', function ($window, SyncPool, SyncDocument) {
                 return highest_c;
             };
 
-			scope.SyncDocument = SyncDocument;
+            scope.SyncDocument = SyncDocument;
             scope.$watch(get_state, function (conn) {
                 scope.highest = conn;
             });

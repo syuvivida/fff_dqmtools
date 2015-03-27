@@ -20,7 +20,7 @@ import fff_cluster
 log = logging.getLogger(__name__)
 
 RunEntry = namedtuple('RunEntry', ["run", "path", "start_time"])
-FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "evt_processed", "evt_accepted"])
+FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "evt_processed", "evt_accepted", "fsize"])
 
 def find_match(re, iter):
     xm = map(re.match, iter)
@@ -67,17 +67,18 @@ def analyze_run_entry(e):
         mtime = os.stat(f).st_mtime
 
         # read the file contents
-        evt_processed, evt_accepted = [-1, -1]
+        evt_processed, evt_accepted, fsize = [-1, -1, -1]
         if "EoR" not in f:
             try:
                 with open(f, "r") as fd:
-                    jsn = json.load(fd).get("data", [-1, -1])
+                    jsn = json.load(fd).get("data", [-1]*5)
                     evt_processed = long(jsn[0])
                     evt_accepted = long(jsn[1])
+                    fsize = long(jsn[4])
             except:
                 log.warning("Crash while reading %s.", f, exc_info=True)
 
-        files.append(FileEntry(int(d['ls']), stream, mtime, evt_processed, evt_accepted))
+        files.append(FileEntry(int(d['ls']), stream, mtime, evt_processed, evt_accepted, fsize))
 
     files.sort()
     return files
@@ -110,12 +111,14 @@ class Analyzer(object):
                     'mtimes': [],
                     'evt_processed': [],
                     'evt_accepted': [],
+                    'fsize': [],
                 })
 
                 lst['lumis'].append(f.ls)
                 lst['mtimes'].append(f.mtime)
                 lst['evt_processed'].append(f.evt_processed)
                 lst['evt_accepted'].append(f.evt_accepted)
+                lst['fsize'].append(f.fsize)
 
             id = "dqm-files-%s-%s-run%d" % (self.hostname, self.app_tag, entry.run)
 
@@ -178,6 +181,4 @@ if __name__ == "__main__":
         report_directory = path,
     )
 
-    s.make_report(backlog=500)
-
-
+    s.make_report(backlog=50)

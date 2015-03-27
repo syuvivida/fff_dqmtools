@@ -44,9 +44,9 @@ class Database(object):
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS Headers (
-            rev INT PRIMARY KEY NOT NULL,
+            id TEXT PRIMARY KEY NOT NULL,
+            rev INT NOT NULL,
 
-            id TEXT NOT NULL,
             timestamp TIMESTAMP,
             hostname TEXT,
             type TEXT,
@@ -62,7 +62,7 @@ class Database(object):
             body BLOB
         )""")
 
-        cur.execute("CREATE INDEX IF NOT EXISTS M_id_index ON Headers (id)")
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS M_rev_index ON Headers (rev)")
         cur.execute("CREATE INDEX IF NOT EXISTS M_timestamp_index ON Headers (timestamp)")
 
         self.conn.commit()
@@ -239,6 +239,12 @@ class SyncSocket(WebSocket):
             self.state = self.STATE_INSYNC
 
             log.info("WebSocket client (%s) requested sync from rev %s", self.peer_address, known_rev)
+
+            # if know_rev is not zero, we have to send at least a single header
+            # to let the web interface to know it is synchronized
+            if known_rev is not None:
+                known_rev = long(known_rev) - 1
+
 
             # send the current state
             # if any changes happen during this time
@@ -563,7 +569,7 @@ def run_socket_greenlet(db, sock):
 
     def handle_conn(cli_sock):
         try:
-            log.info("Accepted input connection: %s", cli_sock)
+            #log.info("Accepted input connection: %s", cli_sock)
 
             # fetch all the documents before making a transaction
             gen = list(message_loop(cli_sock))

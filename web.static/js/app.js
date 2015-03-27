@@ -20,83 +20,89 @@ dqmApp.controller('NavigationCtrl', [
 
     me.hosts_allowed = {};
 
-	// token goes into title instead of uri, but has to be 1:1 identity
-	var token2uri = function (tok) {
-		var re = /^(ws{1,2})\:(.+)\:(\d+)$/;
-		var tokens = tok.match(re);
-		if (! tokens)
-			return null;
+    // token goes into title instead of uri, but has to be 1:1 identity
+    var token2uri = function (tok) {
+        var re = /^(ws|wss|http|https)\:(.+)\:(\d+)$/;
+        var tokens = tok.match(re);
+        if (! tokens)
+            return null;
 
-		if (! me.hosts_allowed[tokens[2]])
-			return null;
+        if (! me.hosts_allowed[tokens[2]])
+            return null;
 
-		return tokens[1] + "://" + tokens[2] + ":" + tokens[3] + "/sync";
-	};
+        var proto = tokens[1];
+        var path = "/sync";
+        if (proto.slice(0,4) === "http") {
+            path = "/sync_proxy"
+        }
 
-	var uri2token = function (uri) {
-		var re = /^(ws{1,2})\:\/\/(.+)\:(\d+)\/sync$/;
-		var tokens = uri.match(re);
-		if (! tokens)
-			return null;
+        return proto + "://" + tokens[2] + ":" + tokens[3] + path;
+    };
 
-		return tokens[1] + ":" + tokens[2] + ":" + tokens[3];
-	};
+    var uri2token = function (uri) {
+        var re = /^(ws|wss|http|https)\:\/\/(.+)\:(\d+)\/(sync|sync_proxy)$/;
+        var tokens = uri.match(re);
+        if (! tokens)
+            return null;
 
-	var default_token = "ws:" + $location.host() + ":" + $location.port();
-	var get_tokens_from_location = function () {
+        return tokens[1] + ":" + tokens[2] + ":" + tokens[3];
+    };
+
+    var default_token = "ws:" + $location.host() + ":" + $location.port();
+    var get_tokens_from_location = function () {
         var l = LocParams.p.hosts;
-		if ((l === null) || (l === undefined))
-			l = default_token;
+        if ((l === null) || (l === undefined))
+            l = default_token;
 
-		if ((l === "") || (l === true))
-			return [];
+        if ((l === "") || (l === true))
+            return [];
 
-		return l.split(",");
-	};
+        return l.split(",");
+    };
 
-	// fff_cluster uses hostnames
-	// these checks if selected hosts are _all_ enabled
-	var make_token = function (host) {
+    // fff_cluster uses hostnames
+    // these checks if selected hosts are _all_ enabled
+    var make_token = function (host) {
         return "ws:" + host + ":" + 9215;
-	};
+    };
 
     me.check_hosts = function (hosts) {
         var tokens = get_tokens_from_location();
-		var tokens_to_check = _.map(hosts, make_token);
+        var tokens_to_check = _.map(hosts, make_token);
 
-		return _.difference(tokens_to_check, tokens).length === 0;
+        return _.difference(tokens_to_check, tokens).length === 0;
     };
 
     me.enable_hosts = function (hosts) {
-		var tokens = _.union(get_tokens_from_location(), _.map(hosts, make_token));
+        var tokens = _.union(get_tokens_from_location(), _.map(hosts, make_token));
         LocParams.setKey("hosts", _.uniq(tokens).join(","));
     };
 
     me.disable_hosts = function (hosts, port) {
-		var tokens = _.difference(get_tokens_from_location(), _.map(hosts, make_token));
+        var tokens = _.difference(get_tokens_from_location(), _.map(hosts, make_token));
         LocParams.setKey("hosts", _.uniq(tokens).join(","));
     };
 
     var update_connections = function () {
-		var new_uris = [];
-		var old_uris = _.keys(SyncPool._conn);
+        var new_uris = [];
+        var old_uris = _.keys(SyncPool._conn);
 
-		_.each(get_tokens_from_location(), function (tok) {
-			var host = token2uri(tok);
-			if (host)
-				new_uris.push(host);
-		});
+        _.each(get_tokens_from_location(), function (tok) {
+            var host = token2uri(tok);
+            if (host)
+                new_uris.push(host);
+        });
 
         var to_connect = _.difference(new_uris, old_uris);
         var to_disconnect = _.difference(old_uris, new_uris);
 
-		_.each(to_disconnect, function (uri) {
+        _.each(to_disconnect, function (uri) {
             SyncPool.disconnect(uri);
-		});
+        });
 
-		_.each(to_connect, function (uri) {
+        _.each(to_connect, function (uri) {
             SyncPool.connect(uri);
-		});
+        });
     };
 
     //$scope.$watch(function () { return $http.pendingRequests.length; }, function (v) {

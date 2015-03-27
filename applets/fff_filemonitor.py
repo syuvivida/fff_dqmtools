@@ -8,6 +8,7 @@ import json
 import subprocess
 import socket
 import struct
+import time
 
 import fff_dqmtools
 
@@ -103,6 +104,7 @@ class FileMonitor(object):
     def __init__(self, path, log):
         self.path = path
         self.log = log
+        self.last_scan = 0
 
         try:
             os.makedirs(self.path)
@@ -139,21 +141,8 @@ class FileMonitor(object):
         else:
             self.log.info("Mountpoint not found and we can't mount.")
 
-    def scan_dir(self, max_count=None):
-        lst = os.listdir(self.path)
-        for f in lst:
-            fp = os.path.join(self.path, f)
-
-            if max_count is not None:
-                if max_count <= 0:
-                    return
-
-                max_count -= 1
-
-            fname = os.path.basename(fp)
-            if fname.startswith("."): continue
-            if not fname.endswith(".jsn"): continue
-
+    def file_reader_gen(self, lst):
+        for fp in lst:
             #self.log.info("Uploading: %s", fp)
             try:
                 # output a None to let the uploaded know we are seriously
@@ -171,13 +160,44 @@ class FileMonitor(object):
                 self.log.warning("Failure to read the document: %s", fp, exc_info=True)
                 #raise Exception("Please restart.")
 
+    def scan_dir(self, max_count=None):
+        lst = os.listdir(self.path)
+        to_upload = []
+        for f in lst:
+            fp = os.path.join(self.path, f)
+
+            fname = os.path.basename(fp)
+            if fname.startswith("."): continue
+            if not fname.endswith(".jsn"): continue
+
+            to_upload.append(fp)
+
+        restart_needed = False
+        if max_count is not None:
+            if len(to_upload) > max_count:
+                to_upload = to_upload[:max_count]
+                restart_needed = True
+
+        return self.file_reader_gen(to_upload), restart_needed
+
     def process_dir(self):
-        bodydoc_generator = self.scan_dir(max_count=150)
-        return socket_upload(bodydoc_generator, self.log)
+        if (time.time() - self.last_scan) < 5:
+            # we don't want to update too often
+            # returning True means we will be called again in one second
+            return True
+
+        bodydoc_generator, restart_needed = self.scan_dir(max_count=150)
+        socket_upload(bodydoc_generator, self.log)
+
+        # return true if we need to call this again
+        if restart_needed:
+            self.last_scan = 0
+            return True
+        else:
+            self.last_scan = time.time()
+            return False
 
     def run_greenlet(self):
-        self.process_dir()
-
         import select
         import _inotify as inotify
         import watcher
@@ -192,10 +212,10 @@ class FileMonitor(object):
         while True:
             c = self.process_dir()
 
-            # if we have files left, restart
-            # but still flush watcher buf
+            # if process_dir return true, we restart it
+            # but we still need to flush watcher (or it will go out of buf)
             wait_time = 30
-            if c != 0:
+            if c:
                 wait_time = 1
 
             r = select.select([fd], [], [], wait_time)
@@ -207,6 +227,7 @@ class FileMonitor(object):
                 # clear the events
                 # this sometimes fails due to a bug in inotify
                 for event in w.read(bufsize=0):
+                    #self.log.info("got event %s", repr(event))
                     pass
 
                 pass
