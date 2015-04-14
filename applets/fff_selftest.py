@@ -38,8 +38,11 @@ class FFFMonitoringTest(object):
         doc["pid"] = os.getpid()
 
         if self.server is not None:
-            log = self.server.log_capture.retrieve()
-            doc["extra"]["stdlog"] = log.strip().split("\n")
+            loggers = self.server.get_loggers()
+            entry = {}
+            for k, v in loggers.items():
+                entry[k] = v[1].retrieve_json()
+            doc["extra"]["loggers"] = entry
 
         meminfo = list(open("/proc/meminfo", "r").readlines())
         def entry_to_dict(line):
@@ -74,14 +77,15 @@ class FFFMonitoringTest(object):
             except:
                 log.warning("Failed to create a report!", exc_info=True)
 
-            gevent.sleep(15)
+            gevent.sleep(15+60)
 
 # no wrappers, it runs in the main/supervisor process
 def __run__(opts, **kwargs):
     global log
     log = kwargs["logger"]
+    server = kwargs["server"]
 
-    f = FFFMonitoringTest(path = opts["path"], server = None)
+    f = FFFMonitoringTest(path = opts["path"], server = server)
     f.run_greenlet()
 
 if __name__ == "__main__":

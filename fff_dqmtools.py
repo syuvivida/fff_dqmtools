@@ -57,6 +57,9 @@ class LogCaptureHandler(logging.StreamHandler):
     def retrieve(self):
         return "\n".join(self.buffer)
 
+    def retrieve_json(self):
+        return list(self.buffer)
+
     def direct_write(self, line):
         # used by the subprocess
         # to directory write to it
@@ -98,6 +101,9 @@ class Server(object):
             self.loggers[name] = (l, log_capture)
 
         return self.loggers[name][0]
+
+    def get_loggers(self):
+        return dict(self.loggers)
 
     def run(self):
         applets = self.opts["applets"]
@@ -376,7 +382,7 @@ def detach(logfile, pidfile):
 if __name__ == "__main__":
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner", "fff_filemonitor",
-        "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq",
+        "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq", "fff_deleter_lookarea",
         "analyze_files",
     ]
 

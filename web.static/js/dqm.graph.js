@@ -85,7 +85,7 @@ mod.directive('dqmMemoryGraph', function ($window) {
 
 var LUMI = 23.310893056;
 
-var process_steam_data = function (data, limit_lumi, old_graph_data) {
+var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpolate) {
     var ret = {};
 
     if ((!data) || (!data.extra) || (!data.extra.streams)) {
@@ -98,7 +98,7 @@ var process_steam_data = function (data, limit_lumi, old_graph_data) {
     // we want to extract "disabled" field from the old data
     var preserve = {};
     if (old_graph_data) {
-        _.each(old_graph_data, function (obj) {
+        _.each(old_graph_data.streams, function (obj) {
             preserve[obj.key] = _.clone(obj);
         });
     };
@@ -117,6 +117,38 @@ var process_steam_data = function (data, limit_lumi, old_graph_data) {
         return arr.slice(Math.max(arr.length - limit_lumi, 0))
     };
 
+    var interpolate = function (arr) {
+        if (!arr)
+            return arr;
+
+        var ret = [];
+
+        _.each(arr, function (v) {
+            var last_entry = ret[ret.length - 1] || null;
+            if (last_entry) {
+                var i = parseInt(last_entry.lumi) + 1;
+                var d = parseInt(v.lumi);
+                for (;i < v.lumi; i++) {
+                    ret.push({
+                        'lumi': i,
+                        'mtime': -1,
+
+                        'start_offset': -1,
+                        'delay': 0,
+
+                        'evt_accepted':  0,
+                        'evt_processed': 0,
+                        'fsize': 0,
+                    });
+                }
+            }
+
+            ret.push(v);
+        });
+
+        return ret;
+    };
+
     var pretty_key = function (key) {
         var m = /^stream([A-Za-z0-9]+).*$/.exec(key);
 
@@ -126,6 +158,9 @@ var process_steam_data = function (data, limit_lumi, old_graph_data) {
 
         return key;
     };
+
+    var min_lumi = NaN;
+    var max_lumi = NaN;
 
     var graph_data = _.map(_.keys(streams), function (k) {
         var lumis = filter(streams[k].lumis);
@@ -140,8 +175,11 @@ var process_steam_data = function (data, limit_lumi, old_graph_data) {
         e["key"] = pretty_key(k);
         e["stream"] = k;
         e["values"] = _.map(lumis, function (_lumi, index) {
-            var lumi = lumis[index];
+            var lumi = parseInt(lumis[index]);
             var mtime = mtimes[index];
+
+            if (!(min_lumi <= lumi)) min_lumi = lumi;
+            if (!(max_lumi >= lumi)) max_lumi = lumi;
 
             // timeout from the begging of the run
             var start_offset = mtime - date_start - LUMI;
@@ -159,21 +197,34 @@ var process_steam_data = function (data, limit_lumi, old_graph_data) {
 
                 'start_offset': start_offset,
                 'delay': delay,
-                'size': 1,
-                'shape': "circle",
 
                 'evt_accepted': evt_accepted[index],
                 'evt_processed': evt_processed[index],
                 'fsize': fsize[index],
+
+                'size': 1,
+                'shape': "circle",
             }
         });
+
+        e["values"] = _.sortBy(e["values"], "lumi");
+        if (do_interpolate) {
+            e["values"] = interpolate(_.sortBy(e["values"], "lumi"));
+        }
         e["global_start"] = date_start;
 
         return e;
     });
 
-    console.log("graph_data", graph_data);
-    return graph_data;
+    // calculate ticks, lazy, inefficient way
+    var x_scale = d3.scale.linear().domain([min_lumi, max_lumi]);
+    var ticks = x_scale.ticks(10);
+
+    return {
+        'streams': graph_data,
+        'global_start': date_start,
+        'ticks': ticks,
+    };
 };
 
 var format_timestamp = function (timestamp) {
@@ -227,7 +278,8 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 .forceX([0, 1])
                 .useVoronoi(false)
                 //.transitionDuration(350)
-                .color(d3.scale.category10().range());
+                .color(d3.scale.category10().range())
+                .margin({left: 100});
 
             chart.tooltipContent(process_steam_tooltip);
             chart.scatter.onlyCircles(false);
@@ -247,7 +299,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
                 if (v) {
                     scope.graph_data = process_steam_data(d, null, scope.graph_data);
-                    chart.forceX([0, 1])
+                    chart.forceX(null)
                 } else {
                     scope.graph_data = process_steam_data(d, 100, scope.graph_data);
                     chart.forceX(null)
@@ -255,15 +307,14 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
             };
 
             scope.$watch("graph_data", function (data) {
-                var datum = data;
-
-                if (!datum) {
-                    datum = [];
+                if (data && data.streams) {
+                    svg.datum(data.streams).call(chart);
+                } else {
                     // nvd3 does not clear the graph properly, we do it for them
                     svg.selectAll("*").remove();
+                    svg.datum([]).call(chart);
                 }
 
-                svg.datum(datum).call(chart);
                 chart.update();
             });
 
@@ -304,15 +355,23 @@ mod.directive('graphDqmEventsLumi', function ($window) {
                 //.color(d3.scale.category10().range());
                 .showControls(true)
                 .transitionDuration(0)
-                .reduceXTicks(true)   //If 'false', every single x-axis tick label will be rendered.
+                .reduceXTicks(false ) // default is true and we don't want that
                 .rotateLabels(0)      //Angle to rotate x-axis labels.
                 .groupSpacing(0.1)    //Distance between each group of bars.
 
             chart.tooltipContent(process_steam_tooltip);
 
+            var tickValues = function (datum) {
+                // for an unknown reason multiBar uses ordinal scale
+                // but we wan't to aligh with the linear scale (scatter plot)
+                //var x = d3.scale.linear();
+                return [401, 405, 500];
+            };
+
             // Axis settings
             chart.xAxis
                 .axisLabel("Lumisection")
+                //.tickValues(tickValues)
                 .tickFormat(d3.format('.00f'));
 
             chart.yAxis
@@ -324,24 +383,24 @@ mod.directive('graphDqmEventsLumi', function ($window) {
                 var v = scope.showAll;
 
                 if (v) {
-                    scope.graph_data = process_steam_data(d, null, scope.graph_data);
+                    scope.graph_data = process_steam_data(d, null, scope.graph_data, true);
                     //chart.forceX([0, 1])
                 } else {
-                    scope.graph_data = process_steam_data(d, 100, scope.graph_data);
+                    scope.graph_data = process_steam_data(d, 100, scope.graph_data, true);
                     //chart.forceX(null)
                 }
             };
 
             scope.$watch("graph_data", function (data) {
-                var datum = data;
-
-                if (!datum) {
-                    datum = [];
+                if (data && data.streams) {
+                    chart.xAxis.tickValues(data.ticks);
+                    svg.datum(data.streams).call(chart);
+                } else {
                     // nvd3 does not clear the graph properly, we do it for them
                     svg.selectAll("*").remove();
+                    svg.datum([]).call(chart);
                 }
 
-                svg.datum(datum).call(chart);
                 chart.update();
             });
 
