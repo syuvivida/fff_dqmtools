@@ -13,6 +13,7 @@ import fff_filemonitor
 # fff_dqmtools fixed the imports for us
 import bottle
 import zlib
+import itertools
 
 log = logging.getLogger(__name__)
 
@@ -491,24 +492,69 @@ class WebServer(bottle.Bottle):
             self.db.get_headers(reload=True)
             return "Deleted %s rows!" % len(ids)
 
+        def verify_logfile(fn):
+            if not fn:
+                raise bottle.HTTPResponse("Log entry not found, invalid esMonitoring.py?", status=500)
+
+            fn = os.path.realpath(fn)
+            allowed = ["/var/log/hltd/pid/"]
+
+            for p in allowed:
+                if os.path.commonprefix([fn, p]) == p:
+                    return fn
+
+            raise bottle.HTTPResponse("Log file is in a weird location, access denied.", status=401)
+
+        def decode_zlog(fn):
+            with open(fn, "rb") as f:
+                decoder = zlib.decompressobj(16+zlib.MAX_WBITS)
+
+                while True:
+                    part = os.read(f.fileno(), 1024*1024)
+                    if len(part) == 0:
+                        break
+
+                    yield decoder.decompress(part)
+
+                yield decoder.flush()
+                if decoder.unused_data:
+                    yield u"<!-- gzip stream unfinished, bytes in buffer: %d -->\n" % len(decoded.unused_data)
+
+        def decode_log(fn):
+            with open(fn, "rb") as f:
+                while True:
+                    part = os.read(f.fileno(), 1024*1024)
+                    if len(part) == 0:
+                        break
+
+                    yield part
+
         @app.route("/utils/show_log/<id>", method=['GET', 'POST'])
         def show_log(id):
+            from bottle import response
+
             c = self.db.conn.cursor()
             c.execute("SELECT body FROM Documents WHERE id = ?", (id, ))
             doc = list(self.db.prepare_docs(c))
             c.close()
 
             b = doc[0]
-            fn = b["stdout_fn"]
-            fn = os.path.realpath(fn)
 
-            allowed = ["/var/log/hltd/pid/"]
-            for p in allowed:
-                if os.path.commonprefix([fn, p]) == p:
-                    relative = os.path.relpath(fn, p)
-                    #print "in allowed", p, r
-                    return bottle.static_file(relative, root=p, mimetype="text/plain")
+            startup_fn = b.get("stdout_fn", None)
+            startup_iter = []
+            if startup_fn:
+                startup_iter = decode_log(verify_logfile(startup_fn))
 
+            gzip_fn = b.get("stdlog_gzip", None)
+            gzip_iter = []
+            if gzip_fn:
+                gzip_iter = decode_zlog(verify_logfile(gzip_fn))
+
+            response.add_header('Content-Type', 'text/plain; charset=UTF-8')
+            chain = itertools.chain(startup_iter, gzip_iter)
+
+            #return "".join(chain)
+            return chain
 
         ### @app.route("/sync_proxy_get/<messages>", method=["GET"])
         ### def sync_proxy_get(messages):
@@ -614,7 +660,6 @@ def __run__(opts, **kwargs):
     port = opts["web.port"]
 
     db = Database(db = db_string)
-    fweb = WebServer(db = db)
 
     fwt = gevent.spawn(run_web_greenlet, db, port = port)
     fsl = gevent.spawn(run_socket_greenlet, db, sock)
