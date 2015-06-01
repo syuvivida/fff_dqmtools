@@ -50,10 +50,10 @@
                 </a>
 
                 <ul class="dropdown-menu cluster" role="menu">
-                  <li><a>Switch hosts:</a></li>
+                  <!--li><a>Switch hosts:</a></li-->
                   <li class="divider"></li>
 
-                  <li ng-repeat="(k,v) in NavigationCtrl.cluster_info.cluster._all">
+                  <li ng-repeat-start="(k,v) in NavigationCtrl.cluster_info.cluster._all">
                     <span class="nodes">
                     {{ k }}
                     <a ng-hide="NavigationCtrl.check_hosts(v)" class="btn btn-xs btn-primary" href="" ng-click="NavigationCtrl.enable_hosts(v); $event.stopPropagation();">enable</a>
@@ -70,6 +70,12 @@
                       </li>
                     </ul>
                   </li>
+                  <li ng-repeat-end class="divider"></li>
+
+                  <li><a href="https://cmswbm2.web.cern.ch/cmswbm2/runregistry/">Run Registry</a></li>
+                  <li><a href="http://dqm-prod-local:8030/dqm/online">DQM GUI (Production)</a></li>
+                  <li><a href="http://cmsonline.cern.ch/portal/page/portal/CMS%20online%20system/Elog?_piref815_429145_815_429142_429142.strutsAction=%2FviewSubcatMessages.do%3FcatId%3D3%26subId%3D20%26page%3D1%26fetch%3D1">ELOG</a></li>
+
                 </ul>
               </li>
 
