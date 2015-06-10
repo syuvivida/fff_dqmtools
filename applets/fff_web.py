@@ -501,6 +501,9 @@ class WebServer(bottle.Bottle):
 
             for p in allowed:
                 if os.path.commonprefix([fn, p]) == p:
+                    if not os.path.exists(fn):
+                        raise bottle.HTTPResponse("Log file is missing: %s" % fn, status=404)
+
                     return fn
 
             raise bottle.HTTPResponse("Log file is in a weird location, access denied.", status=401)
