@@ -23,6 +23,6 @@ def __run__(opts, **kwargs):
         report_directory = opts["path"],
         fake = opts["deleter.fake"],
     )
-    service.delay_seconds = 15*60
+    service.delay_seconds = 30
 
     service.run_greenlet()
