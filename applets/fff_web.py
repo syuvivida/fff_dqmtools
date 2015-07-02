@@ -161,7 +161,10 @@ class Database(object):
                     rev = get_last_rev()
 
                 # get the document
-                doc = json.loads(body)
+                if isinstance(body, basestring):
+                    doc = json.loads(body)
+                else:
+                    doc = body
 
                 # not that we ever overflow it ...
                 rev = (rev + 1) & ((2**63)-1)
@@ -409,6 +412,16 @@ class WebServer(bottle.Bottle):
                 'db_size': ps*pc,
             }
 
+        @app.post("/_upload/")
+        def upload():
+            from bottle import request
+
+            j = json.loads(request.body.read())
+            documents = j["docs"]
+
+            self.db.direct_transactional_upload(documents)
+            log.info("Accepted %d document(s) from input connection: %s", len(documents), request.remote_addr)
+
         ### @app.route("/get/<id>", method=['GET', 'POST'])
         ### def get_id(id):
         ###     from bottle import request, response
@@ -609,55 +622,12 @@ def run_web_greenlet(db, host="0.0.0.0", port=9215, **kwargs):
     server.serve_forever()
 
 import gevent
-import struct
-
-def run_socket_greenlet(db, sock):
-    log.info("Started input listener: %s", sock)
-
-    def recvall(sock, count):
-        buf = b''
-        while count:
-            r = sock.recv(count)
-            if not r: return None
-            buf += r
-            count -= len(r)
-
-        return buf
-
-    def message_loop(cli_sock):
-        while True:
-            msg_size = recvall(cli_sock, 16)
-            if msg_size is None: return
-
-            msg_size = struct.unpack("!Q", msg_size.decode("hex"))[0]
-            body = recvall(cli_sock, msg_size)
-            if body is None: return
-
-            yield body
-
-    def handle_conn(cli_sock):
-        try:
-            #log.info("Accepted input connection: %s", cli_sock)
-
-            # fetch all the documents before making a transaction
-            gen = list(message_loop(cli_sock))
-            db.direct_transactional_upload(gen)
-
-            log.info("Accepted %d document(s) from input connection: %s", len(gen), cli_sock)
-        finally:
-            cli_sock.close()
-
-    sock.listen(15)
-    while True:
-        cli, addr = sock.accept()
-        gevent.spawn(handle_conn, cli)
 
 @fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, **kwargs):
     global log
     log = kwargs["logger"]
-    sock = kwargs["lock_socket"]
 
     db_string = opts["web.db"]
     port = opts["web.port"]
@@ -665,14 +635,4 @@ def __run__(opts, **kwargs):
     db = Database(db = db_string)
 
     fwt = gevent.spawn(run_web_greenlet, db, port = port)
-    fsl = gevent.spawn(run_socket_greenlet, db, sock)
-
-    gevent.joinall([fwt, fsl], raise_error=True)
-
-if __name__ == "__main__":
-    print "unrecable"
-    db = sqlite3.connect("./db.sqlite3")
-    w = WebServer(db=db)
-
-    #w.run_greenlet(port=9315)
-    w.run_test()
+    gevent.joinall([fwt], raise_error=True)

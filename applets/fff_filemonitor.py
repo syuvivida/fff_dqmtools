@@ -9,8 +9,11 @@ import subprocess
 import socket
 import struct
 import time
+import urllib2
+import json
 
 import fff_dqmtools
+import fff_control
 
 def atomic_read_delete(fp):
     import os, stat, fcntl, errno
@@ -69,40 +72,33 @@ def atomic_create_write(fp, body):
 
     os.rename(tmp_fp, fp)
 
-def socket_upload(lst, log=None):
-    # find the socket and transmit
-    sock_name = fff_dqmtools.get_lock_key("fff_web")
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock_connected = False
-    count = 0
+def http_upload(lst_gen, port, log=None, test_webserver=False):
+    url = "http://127.0.0.1:%d/_upload/" % port
+    docs = list(filter(lambda x: x is not None, lst_gen))
 
+    if (not test_webserver) and (len(docs) == 0):
+        return 0
+
+    data = json.dumps({ "docs": docs })
+    r = urllib2.Request(url, data, {'Content-Type': 'application/json'})
+
+    f = None
     try:
-        for body in lst:
-            # we try to establish a connection (before reading an actual document)
-            if not sock_connected:
-                # try connecting first, before uploading
-                sock.connect("\0" + sock_name)
-                sock_connected = True
-            #if log: log.info("Connected: %s", sock.fileno())
-
-            if not body:
-                continue
-
-            sock.sendall(struct.pack("!Q", len(body)).encode("hex"))
-            sock.sendall(body)
-            count += 1
-
-    except socket.error:
-        if log: log.warning("Couldn't upload files to a web instance: %s", sock_name, exc_info=True)
+        f = urllib2.urlopen(r)
+        resp = f.read()
+    except urllib2.HTTPError:
+        if log: log.warning("Couldn't upload files to a web instance: %s", url, exc_info=True)
         raise
     finally:
-        sock.close()
+        if f is not None:
+            f.close()
 
-    return count
+    return len(docs)
 
 class FileMonitor(object):
-    def __init__(self, path, log):
+    def __init__(self, path, port, log):
         self.path = path
+        self.port = port
         self.log = log
         self.last_scan = 0
 
@@ -145,17 +141,15 @@ class FileMonitor(object):
         for fp in lst:
             #self.log.info("Uploading: %s", fp)
             try:
-                # output a None to let the uploaded know we are seriously
+                # output a None to let the uploader know that we are serious
                 # (i am actually serious, it is used for synchronization)
                 yield None
 
-                body = atomic_read_delete(fp)
-
-                # this is absolutely unnecessary
-                # but it's really good to detect json errors early
-                #_json = json.loads(body)
-
-                yield body
+                try:
+                    body = atomic_read_delete(fp)
+                    yield json.loads(body)
+                except:
+                    self.log.warning("Couldn't read or deserialize document: %s", fp)
             except:
                 self.log.warning("Failure to read the document: %s", fp, exc_info=True)
                 #raise Exception("Please restart.")
@@ -187,7 +181,7 @@ class FileMonitor(object):
             return True
 
         bodydoc_generator, restart_needed = self.scan_dir(max_count=150)
-        socket_upload(bodydoc_generator, self.log)
+        http_upload(bodydoc_generator, port=self.port, log=self.log)
 
         # return true if we need to call this again
         if restart_needed:
@@ -198,9 +192,14 @@ class FileMonitor(object):
             return False
 
     def run_greenlet(self):
-        import select
+        from gevent import select
         import _inotify as inotify
         import watcher
+
+        # check if web server running, otherwise just restart
+        def is_webserver_running():
+            http_upload([], port=self.port, log=self.log, test_webserver=True)
+        is_webserver_running()
 
         mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
         w = watcher.Watcher()
@@ -236,10 +235,12 @@ class FileMonitor(object):
 
 @fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
+@fff_control.enable_control_socket()
 def __run__(opts, **kwargs):
     global log
     log = kwargs["logger"]
     path = opts["path"]
+    port = opts["web.port"]
 
-    fmon = FileMonitor(path = path, log = log)
+    fmon = FileMonitor(path = path, log = log, port = port)
     fmon.run_greenlet()

@@ -164,6 +164,7 @@ def lock_wrapper(f):
             raise Exception("Could not get the lock for %s, path: %s" % (lkey, __ipath__))
 
         kwargs["lock_socket"] = lock
+        kwargs["lock_key"] = lkey
 
         logger.info("Acquired lock: %s", lkey)
         f(*kargs, **kwargs)
@@ -238,7 +239,7 @@ def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
         # so do it before setting it
         if wrapper_kwargs.has_key('uid'):
             setuid(wrapper_kwargs["uid"], wrapper_kwargs["gid"])
-        
+
         _pr_set_deathsig()
 
     proc = subprocess.Popen(args,
@@ -381,7 +382,7 @@ def detach(logfile, pidfile):
 
 if __name__ == "__main__":
     default_applets = [
-        "fff_web", "fff_selftest", "fff_logcleaner", "fff_filemonitor",
+        "fff_web", "fff_selftest", "fff_logcleaner", "fff_logcleaner_gzip", "fff_filemonitor",
         "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq", "fff_deleter_lookarea", "fff_deleter_playback",
         "analyze_files",
     ]
