@@ -85,7 +85,7 @@ mod.directive('dqmMemoryGraph', function ($window) {
 
 var LUMI = 23.310893056;
 
-var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpolate) {
+var process_stream_data = function (data, limit_lumi, date_metric, old_graph_data, do_interpolate) {
     var ret = {};
 
     if ((!data) || (!data.extra) || (!data.extra.streams)) {
@@ -106,7 +106,6 @@ var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpol
     var date_start = data.extra.global_start;
     var streams = data.extra.streams;
 
-    // from key:value, make a [value], and key being an entry in value
     var filter = function (arr) {
         if (!arr)
             return arr;
@@ -132,6 +131,7 @@ var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpol
                     ret.push({
                         'lumi': i,
                         'mtime': -1,
+                        'ctime': -1,
 
                         'start_offset': -1,
                         'delay': 0,
@@ -165,6 +165,10 @@ var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpol
     var graph_data = _.map(_.keys(streams), function (k) {
         var lumis = filter(streams[k].lumis);
         var mtimes = filter(streams[k].mtimes);
+        var ctimes = filter(streams[k].ctimes);
+        if (!ctimes)
+            ctimes = mtimes;
+
         var evt_accepted = filter(streams[k].evt_accepted);
         var evt_processed = filter(streams[k].evt_processed);
         var fsize = filter(streams[k].fsize);
@@ -177,12 +181,17 @@ var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpol
         e["values"] = _.map(lumis, function (_lumi, index) {
             var lumi = parseInt(lumis[index]);
             var mtime = mtimes[index];
+            var ctime = ctimes[index];
 
             if (!(min_lumi <= lumi)) min_lumi = lumi;
             if (!(max_lumi >= lumi)) max_lumi = lumi;
 
             // timeout from the begging of the run
-            var start_offset = mtime - date_start - LUMI;
+            var dtime = mtime;
+            if (date_metric == "ctime")
+                dtime = ctime;
+
+            var start_offset = dtime - date_start - LUMI;
             var lumi_offset = (lumi - 1) * LUMI;
 
             // timeout from the time we think this lumi happenned
@@ -194,6 +203,7 @@ var process_steam_data = function (data, limit_lumi, old_graph_data, do_interpol
 
                 'lumi': lumi,
                 'mtime': mtime,
+                'ctime': ctime,
 
                 'start_offset': start_offset,
                 'delay': delay,
@@ -245,6 +255,7 @@ var process_steam_tooltip = function(k, _v1, _v2, o) {
         + "File size: <strong>" + d3.format('.02f')(parseFloat(p.fsize) / 1024 / 1024) + " mb.</strong><br />"
         + "-<br />"
         + "File m-time: <strong>" + format_timestamp(p.mtime) + "</strong><br />"
+        + "File c-time: <strong>" + format_timestamp(p.ctime) + "</strong><br />"
         + "Time offset from the expected first delivery [delivery_start_offset]: <strong>" + p.start_offset  + " (seconds)</strong><br />"
         + "Delay [delivery_start_offset - (lumi_number - 1)*23.3]: <strong>" + p.delay + " (seconds)</strong><br />"
         + "-<br />"
@@ -260,7 +271,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
     return {
         restrict: 'E',
-        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=" },
+        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=", 'metric': '=' },
         link: function (scope, elm, attrs) {
             var width = parseInt(scope.width);
             var height = parseInt(scope.height);
@@ -298,10 +309,10 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
                 var v = scope.showAll;
 
                 if (v) {
-                    scope.graph_data = process_steam_data(d, null, scope.graph_data);
+                    scope.graph_data = process_stream_data(d, null, scope.metric, scope.graph_data);
                     chart.forceX(null)
                 } else {
-                    scope.graph_data = process_steam_data(d, 100, scope.graph_data);
+                    scope.graph_data = process_stream_data(d, 100, scope.metric, scope.graph_data);
                     chart.forceX(null)
                 }
             };
@@ -325,6 +336,14 @@ mod.directive('graphDqmTimestampsLumi', function ($window) {
 
                 setData();
             });
+
+            scope.$watch("metric", function (newv, oldv) {
+                if (newv === oldv)
+                    return;
+
+                setData();
+            });
+
         }
     };
 });
@@ -383,10 +402,10 @@ mod.directive('graphDqmEventsLumi', function ($window) {
                 var v = scope.showAll;
 
                 if (v) {
-                    scope.graph_data = process_steam_data(d, null, scope.graph_data, true);
+                    scope.graph_data = process_stream_data(d, null, 'mtime', scope.graph_data, true);
                     //chart.forceX([0, 1])
                 } else {
-                    scope.graph_data = process_steam_data(d, 100, scope.graph_data, true);
+                    scope.graph_data = process_stream_data(d, 100, 'mtime', scope.graph_data, true);
                     //chart.forceX(null)
                 }
             };

@@ -20,7 +20,7 @@ import fff_cluster
 log = logging.getLogger(__name__)
 
 RunEntry = namedtuple('RunEntry', ["run", "path", "start_time"])
-FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "evt_processed", "evt_accepted", "fsize"])
+FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "ctime", "evt_processed", "evt_accepted", "fsize"])
 
 def find_match(re, iter):
     xm = map(re.match, iter)
@@ -65,6 +65,7 @@ def analyze_run_entry(e):
         stream = d["leftover"].strip("_")
         stream = re.sub(r".jsn$", r"", stream)
         mtime = os.stat(f).st_mtime
+        ctime = os.stat(f).st_ctime
 
         # read the file contents
         evt_processed, evt_accepted, fsize = [-1, -1, -1]
@@ -78,7 +79,7 @@ def analyze_run_entry(e):
             except:
                 log.warning("Crash while reading %s.", f, exc_info=True)
 
-        files.append(FileEntry(int(d['ls']), stream, mtime, evt_processed, evt_accepted, fsize))
+        files.append(FileEntry(int(d['ls']), stream, mtime, ctime, evt_processed, evt_accepted, fsize))
 
     files.sort()
     return files
@@ -109,6 +110,7 @@ class Analyzer(object):
                 lst = grouped.setdefault(f.stream, {
                     'lumis': [],
                     'mtimes': [],
+                    'ctimes': [],
                     'evt_processed': [],
                     'evt_accepted': [],
                     'fsize': [],
@@ -116,6 +118,7 @@ class Analyzer(object):
 
                 lst['lumis'].append(f.ls)
                 lst['mtimes'].append(f.mtime)
+                lst['ctimes'].append(f.ctime)
                 lst['evt_processed'].append(f.evt_processed)
                 lst['evt_accepted'].append(f.evt_accepted)
                 lst['fsize'].append(f.fsize)

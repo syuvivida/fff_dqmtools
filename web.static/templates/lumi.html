@@ -67,6 +67,11 @@
           <a ng-hide="LocParams.p.tsGraph" ng-click="LocParams.setKey('tsGraph', 'all')" class="btn btn-default btn-xs">show all files</a>
           <a ng-show="LocParams.p.tsGraph" ng-click="LocParams.setKey('tsGraph', null)" class="btn btn-success btn-xs">show last 100 files</a>
         </span>
+
+        <span ng-show="LocParams.p.showTimestampsGraph">
+          <a ng-hide="LocParams.p.tsMetric" ng-click="LocParams.setKey('tsMetric', 'ctime')" class="btn btn-default btn-xs">use ctime</a>
+          <a ng-show="LocParams.p.tsMetric" ng-click="LocParams.setKey('tsMetric', null)" class="btn btn-success btn-xs">back to mtime</a>
+        </span>
       </li>
       <li>
         <span class="blue">Accepted events graph</span>
@@ -86,7 +91,7 @@
       <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-files'][0]">
         <div dqm-refresh="doc">
           <div ng-if="doc.extra && (_.size(doc.extra.streams) != 0)">
-            <graph-dqm-timestamps-lumi height="300" width="800" data="doc" show-all="LocParams.p.tsGraph"/>
+            <graph-dqm-timestamps-lumi height="300" width="800" data="doc" show-all="LocParams.p.tsGraph" metric="LocParams.p.tsMetric" />
           </div>
           <div ng-if="doc.extra && (_.size(doc.extra.streams) == 0)">
             <p> No streams were delivered during this run. </p>
