@@ -58,9 +58,12 @@ if __name__ == "__main__":
         else:
             sys.path.append("../")
             import fff_cluster
+            all = []
             for k, hosts in fff_cluster.get_node()["_all"].items():
                 print k + ":", " ".join(hosts)
+                all += hosts
 
+            print "all:", " ".join(all)
             sys.exit(1)
 
         for host in hosts:

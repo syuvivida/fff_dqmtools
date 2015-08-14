@@ -383,7 +383,9 @@ def detach(logfile, pidfile):
 if __name__ == "__main__":
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner", "fff_logcleaner_gzip", "fff_filemonitor",
-        "fff_deleter", "fff_deleter_transfer", "fff_deleter_minidaq", "fff_deleter_lookarea", "fff_deleter_playback",
+        "fff_deleter", "fff_deleter_c2f11_09_01", "fff_deleter_transfer", "fff_deleter_minidaq",
+        "fff_deleter_lookarea", "fff_deleter_playback",
+        "fff_deleter_playback_c2f11_13_01", "fff_deleter_lookarea_c2f11_19_01",
         "analyze_files",
     ]
 

@@ -54,6 +54,22 @@ mod.controller('UtilsCtrl', ['$scope', '$http', '$modal', '$window', 'Alerts', f
             // aborted, do nothing
         });
     };
+
+	$scope.maxTime = function (doc) {
+		if ((!doc) || (!doc.extra))
+			return 0;
+
+		var to_max = []
+		_.map(doc.extra.streams, function (v, k) {
+			if (v.mtimes.length)
+				to_max.push(v.mtimes[v.mtimes.length - 1]);
+
+			if (v.ctimes.length)
+				to_max.push(v.mtimes[v.mtimes.length - 1]);
+		});
+
+		return _.max(to_max);
+	};
 }]);
 
 mod.controller('SimpleDataDialogCtrl', function ($scope, $modalInstance, data) {

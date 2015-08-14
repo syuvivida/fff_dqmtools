@@ -155,7 +155,7 @@ class Analyzer(object):
 
             time.sleep(105)
 
-@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01", "bu-c2f11-09-01"])
 @fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, logger, **kwargs):

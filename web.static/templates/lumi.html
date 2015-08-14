@@ -90,6 +90,14 @@
     <div ng-if="LocParams.p.showTimestampsGraph">
       <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-files'][0]">
         <div dqm-refresh="doc">
+
+          <!--div ng-controller="UtilsCtrl">
+            <div ng-show="(doc.timestamp - maxTime(doc)) > 60" class="alert-warning alert">
+              <strong> Warning! </strong> Report was made {{ doc.timestamp*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+              and the last file was delivered {{ maxTime(doc)*1000 | date:'yyyy-MM-dd HH:mm:ss' }}.
+            </div>
+          </div-->
+
           <div ng-if="doc.extra && (_.size(doc.extra.streams) != 0)">
             <graph-dqm-timestamps-lumi height="300" width="800" data="doc" show-all="LocParams.p.tsGraph" metric="LocParams.p.tsMetric" />
           </div>

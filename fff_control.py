@@ -83,8 +83,8 @@ def enable_control_socket(ctrl_class=Ctrl):
 
         actual_t = gevent.spawn(actual_f, *args, **kwargs)
         control_t = gevent.spawn(ctrl.run_greenlet)
-        # do not wait for control_f, it runs forever
-        gevent.joinall([actual_t, control_t], raise_error=True)
+        # do not wait for control_t, it runs forever
+        gevent.joinall([actual_t, ], raise_error=True)
         
     from functools import partial
     def wrapping_func(actual_f):
