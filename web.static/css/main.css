@@ -40,6 +40,19 @@ table.hide-actions tr a.hover-hide { visibility: hidden; }
 
 ol.breadcrumb span.blue { color: #337AB7; }
 
+.log-browser .nav > li > a {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.log-browser .nav > li > a > .badge {
+  font-size: 10px;
+}
+
+.log-browser pre.log {
+  font-size: 10px;
+}
+
 .dqm-refresh-on {
 	/* box-shadow: 0 0 8px rgba(81, 203, 238, 1) inset; */
 	-webkit-animation: dqm-refresh-blink 1s ease-in-out;

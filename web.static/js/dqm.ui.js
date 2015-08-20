@@ -240,6 +240,33 @@ mod.directive('prettifySource', function ($window) {
     };
 });
 
+mod.directive('dqmLog', function ($window, $interval) {
+    return {
+        restrict: 'E',
+        scope: { 'log': '=' },
+        link: function (scope, elm, attrs) {
+            var format_log = function (log) {
+                if (_.isArray(log)) {
+                    var rlog = _.clone(log);
+                    rlog.reverse();
+                    return rlog.join("");
+                }
+
+                return "logfile not available";
+            };
+
+            var update = function () {
+                scope.flog = format_log(scope.log);
+            }
+
+            scope.$watch('log', update);
+        },
+        template: '<pre class="log" ng-bind="flog"></pre>'
+    };
+});
+
+
+
 mod.directive('dqmTimediffField', function ($window, $interval) {
     return {
         restrict: 'E',

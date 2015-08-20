@@ -579,13 +579,13 @@ mod.controller('CachedDocumentCtrl', ['$scope', '$attrs', 'SyncPool', 'SyncDocum
             } else {
                 me._update_ids([]);
             }
-        });
+        }, true);
     }
 
     if ($attrs.docIdList) {
         $scope.$watch($attrs.docIdList, function (v) {
             me._update_ids(v || []);
-        });
+        }, true);
     }
 
     SyncPool.subscribe_events(me._process_event);
@@ -625,3 +625,65 @@ mod.directive('syncState', function ($window, SyncPool, SyncDocument) {
             '<span ng-show="SyncDocument._requests.length" class="label label-warning"> {{SyncDocument._requests.length}} </span>'
     };
 });
+
+// this module tracks runs:
+//   - maintain list of runs
+//   - maintain know header list per run
+mod.factory('SyncRun', ['SyncPool', '$window', '$http', '$q', function (SyncPool, $window, $http, $q) {
+    var me = {};
+
+    me.parse_headers = function (headers, reload) {
+        if (reload) {
+            me.runs_dct = {};
+            me.runs = [];
+        };
+
+        var runs_added = false;
+
+        _.each(headers, function (head) {
+            if (head.run !== null)
+                me.runs.push(head.run);
+
+            // get the run dictionary
+            if (me.runs_dct[head.run] === undefined) {
+                runs_added = true;
+                me.runs_dct[head.run] = {
+                    'items': {},
+                    'ids': [],
+                };
+            }
+            var rd = me.runs_dct[head.run];
+
+            // fill in "items" in the run directory
+            rd["items"][head["_id"]] = head;
+
+            // check if we need to regen ids
+            var ids = rd["ids"];
+            var id = head["_id"];
+            if (_.indexOf(ids, id, true) == -1) {
+                ids.push(id);
+                ids.sort();
+            }
+        });
+
+        me.runs.sort();
+        me.runs = _.uniq(me.runs, true);
+        me.runs.reverse();
+
+//        me.update_run_ptr();
+    };
+
+    me.get_runs = function () {
+        return me.runs; 
+    };
+
+    me.get_run_dictionary = function (run) {
+        return me.runs_dct[run];
+    };
+
+    me.parse_headers([], true);
+    SyncPool.subscribe_headers(me.parse_headers);
+
+
+    return me;
+}]);

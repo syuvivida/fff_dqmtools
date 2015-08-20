@@ -175,9 +175,11 @@ class FileMonitor(object):
         return self.file_reader_gen(to_upload), restart_needed
 
     def process_dir(self):
-        if (time.time() - self.last_scan) < 5:
+        if ((time.time() - self.last_scan) >= 0) and ((time.time() - self.last_scan) < 5):
             # we don't want to update too often
             # returning True means we will be called again in one second
+
+            # if time is less than zero, well, it's bad
             return True
 
         bodydoc_generator, restart_needed = self.scan_dir(max_count=150)

@@ -19,6 +19,7 @@ dqmApp.controller('NavigationCtrl', [
     };
 
     me.hosts_allowed = {};
+    me.hosts_shortcuts = {};
 
     // token goes into title instead of uri, but has to be 1:1 identity
     var token2uri = function (tok) {
@@ -57,7 +58,29 @@ dqmApp.controller('NavigationCtrl', [
         if ((l === "") || (l === true))
             return [];
 
-        return l.split(",");
+        var splits = l.split(",");
+        var all = [];
+        _.each(splits, function (token) {
+            if (me.hosts_shortcuts[token]) {
+                _.each(me.hosts_shortcuts[token], function (t) {
+                    all.push(t);
+                });
+            } else {
+                all.push(token);
+            }
+        });
+    
+        return all;
+    };
+
+    var write_location_from_tokens = function (tokens) {
+        tokens.sort();
+        var loc = _.uniq(tokens).join(",");
+        _.each(me.hosts_shortcuts, function (sc_value, sc_key) {
+            loc = loc.replace(sc_value, sc_key);
+        });
+
+        LocParams.setKey("hosts", loc);
     };
 
     // fff_cluster uses hostnames
@@ -75,12 +98,12 @@ dqmApp.controller('NavigationCtrl', [
 
     me.enable_hosts = function (hosts) {
         var tokens = _.union(get_tokens_from_location(), _.map(hosts, make_token));
-        LocParams.setKey("hosts", _.uniq(tokens).join(","));
+        write_location_from_tokens(tokens);
     };
 
     me.disable_hosts = function (hosts, port) {
         var tokens = _.difference(get_tokens_from_location(), _.map(hosts, make_token));
-        LocParams.setKey("hosts", _.uniq(tokens).join(","));
+        write_location_from_tokens(tokens);
     };
 
     var update_connections = function () {
@@ -118,6 +141,10 @@ dqmApp.controller('NavigationCtrl', [
             _.each(v, function (host) {
                 me.hosts_allowed[host] = true;
             });
+    
+            // save the "shortcut"
+            var sc_value = _.uniq(_.map(_.values(v), make_token));
+            me.hosts_shortcuts[k] = sc_value;
         });
         update_connections();
     });
@@ -129,20 +156,12 @@ dqmApp.controller('NavigationCtrl', [
     $scope.$watch(LocParams.watchFunc('hosts'),  update_connections);
 }]);
 
-dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', function($scope, $rootScope, SyncPool, LocParams) {
+dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', 'SyncRun', function($scope, $rootScope, SyncPool, LocParams, SyncRun) {
     var me = this;
 
-    me.runs_dct = {};
-    me.runs = [];
-
-    var set_default = function (dct, key, value) {
-        if (dct[key] === undefined)
-            dct[key] = value;
-
-        return dct[key];
-    };
-
     me.update_run_ptr = function () {
+        me.runs = SyncRun.get_runs();
+
         me.latest_run = me.runs[0];
         if (LocParams.p.trackRun) {
             if ((me.latest_run !== undefined) && (me.run != me.latest_run)) {
@@ -162,45 +181,29 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
         me.previous_run = fi(ci + 1);
         me.next_run = fi(ci - 1);
 
-        me.run_dct = me.runs_dct[me.run] || {};
-        me.run_ids = _.pluck(me.run_dct.items, "_id");
-
-        // template use per-type-filtering
-        me.type_dct = _.groupBy(me.run_dct.items || {}, 'type');
-        me.type_dct_id = _.mapObject(me.type_dct, function (val) {
-            return _.pluck(val, "_id");
-        });
-
-        me.run0_dct = me.runs_dct[null] || {};
-        me.run0_ids = _.pluck(me.run0_dct.items, "_id");
+        // run_dct won't change the reference (at least not until this function is called)
+        // so we can deep-watch and all
+        me.run_dct = SyncRun.get_run_dictionary(me.run) || {};
+        me.run0_dct = SyncRun.get_run_dictionary(null) || {};
     };
 
-    me.parse_headers = function (headers, reload) {
-        if (reload) {
-            me.runs_dct = {};
-            me.runs = [];
-        };
-
-        _.each(headers, function (head) {
-            if (head.run !== null)
-                me.runs.push(head.run);
-
-            var rd = set_default(me.runs_dct, head.run, {});
-            var items = set_default(rd, 'items', {});
-            items[head["_id"]] = head;
+    // this is necessary not to overflow digests
+    me.type_id_cache = {};
+    me.get_type_ids = function (type) {
+        var new_ids = [];
+        _.each(me.run_dct.items || {}, function (item, key) {
+            if (item["type"] === type) {
+                new_ids.push(item._id);
+            }
         });
+        new_ids.sort();
 
-        me.runs.sort();
-        me.runs = _.uniq(me.runs, true);
-        me.runs.reverse();
+        if (! _.isEqual(new_ids, me.type_id_cache[type])) {
+            me.type_id_cache[type] = new_ids;
+        }
 
-        me.update_run_ptr();
+        return me.type_id_cache[type];
     };
-
-    SyncPool.subscribe_headers(me.parse_headers);
-    $scope.$on("$destroy", function () {
-        SyncPool.unsubscribe_headers(me.parse_headers);
-    });
 
     $scope.$watch(LocParams.watchFunc('run'), function (run) {
         if ((run === undefined) && (LocParams.p.trackRun === undefined)) {
@@ -212,6 +215,10 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
         me.run_ = parseInt(run);
 
         $rootScope.title = ": Run " + me.run;
+        me.update_run_ptr();
+    });
+
+    $scope.$watch(SyncRun.get_runs, function (run_lst) {
         me.update_run_ptr();
     });
 

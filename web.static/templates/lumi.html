@@ -88,7 +88,7 @@
     <div ng-if="LocParams.p.showAny" ng-include="'templates/tableAny.html'"></div>
 
     <div ng-if="LocParams.p.showTimestampsGraph">
-      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-files'][0]">
+      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.get_type_ids('dqm-files')[0]">
         <div dqm-refresh="doc">
 
           <!--div ng-controller="UtilsCtrl">
@@ -112,7 +112,7 @@
     </div>
 
     <div ng-if="LocParams.p.showEventsGraph">
-      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.type_dct_id['dqm-files'][0]">
+      <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.get_type_ids('dqm-files')[0]">
         <div dqm-refresh="doc">
           <div ng-if="doc.extra && (_.size(doc.extra.streams) != 0)">
             <graph-dqm-events-lumi height="300" width="800" data="doc" show-all="LocParams.p.tsGraph"/>

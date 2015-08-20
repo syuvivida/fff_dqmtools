@@ -1,4 +1,4 @@
-<div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.run0_ids">
+<div ng-controller="CachedDocumentCtrl" doc-id-list="LumiRunCtrl.run0_dct.ids">
   <table class="table table-striped hide-actions">
     <thead>
       <tr>
@@ -17,7 +17,7 @@
       </tr>
     </thead>
 
-    <tbody ng-hide="LumiRunCtrl.run0_ids.length">
+    <tbody ng-hide="LumiRunCtrl.run0_dct.ids.length">
       <tr class="align-center active"><td colspan="100">no data</td></tr>
     </tbody>
 
@@ -46,7 +46,7 @@
           <a ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></a>
           <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
 
-          <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
+          <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'; LumiRunCtrl._log = '... please select'" class="hover-hide btn btn-default btn-xs">logs</a>
           <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
@@ -54,7 +54,19 @@
 
       <tr ng-if="_show_inline == 'log'">
         <td colspan="100">
-          <pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre>
+          <!--pre class="prettyprint" lang="text" ng-bind="doc.extra.stdlog"></pre-->
+          <div class="panel panel-default log-browser">
+            <div class="panel-heading">
+              <ul class="nav nav-pills" role="tablist">
+                <li role="presentation" ng-repeat="(log_name, log) in doc.extra.loggers">
+                  <a ng-click="LumiRunCtrl._log_name = log_name">{{ log_name }}<span class="badge">{{ log.length }}</span></a>
+                </li>
+              </ul>
+            </div>
+            <div class="panel-body">
+              <dqm-log log="doc.extra.loggers[LumiRunCtrl._log_name]"></dqm-log>
+            </div>
+          </div>
         </td>
       </tr>
 
