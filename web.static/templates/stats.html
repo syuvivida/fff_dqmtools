@@ -1,0 +1,97 @@
+<div ng-controller="RunStatsCtrl">
+  <div ng-show="_.size(SyncPool._conn) == 0">
+    <div class="runs alert-danger alert">
+      <strong> Warning! </strong> No hosts selected, nothing to monitor.
+    </div>
+  </div>
+
+  <div class="runs alert-success alert run-browser">
+    <div class="btn-group" role="group" aria-label="...">
+      <button type="button" class="btn btn-default" ng-click="RunStatsCtrl.select_last(5)">Last 5 runs</button>
+      <button type="button" class="btn btn-default" ng-click="RunStatsCtrl.select_last(15)">Last 15 runs</button>
+      <button type="button" class="btn btn-default" ng-click="RunStatsCtrl.select_last(50)">Last 50 runs</button>
+      <button type="button" class="btn btn-default" ng-click="RunStatsCtrl.select_last(100)">Last 100 runs</button>
+    </div>
+
+    <div class="alert-separator"></div>
+    <form class="form-inline">
+      <div class="form-group">
+        <label for="first_run">First run: </label>
+        <input id="fist_run" type="text" typeahead="run for run in RunStatsCtrl.runs | filter:$viewValue | limitTo:8"
+          class="form-control input-sm" ng-model="LocParams.p.firstRun">
+      </div>
+
+      <div class="form-group">
+        <label for="last_run">Last run: </label>
+        <input id="last_run" type="text" typeahead="run for run in RunStatsCtrl.runs | filter:$viewValue | limitTo:8"
+          class="form-control input-sm" ng-model="LocParams.p.lastRun">
+      </div>
+
+      <span> ({{ RunStatsCtrl.runs_selected.length }} runs)</span>
+
+      <div class="alert-separator"></div>
+      <button type="submit" ng-disabled="RunStatsCtrl.runs_selected.length > 100" class="btn btn-primary btn-sm" ng-click="RunStatsCtrl.just_do_it()"> just do it! </button>
+
+      <span ng-show="RunStats.get_cache_length()">
+        <button ng-hide="RunStatsCtrl.clear_cache_confirm_" type="button" class="btn btn-default" ng-click="RunStatsCtrl.clear_cache_confirm_ = true">clear cache</button>
+        <button ng-show="RunStatsCtrl.clear_cache_confirm_" type="button" class="btn btn-default" ng-click="RunStatsCtrl.clear_cache_confirm_ = false; RunStats.clear_cache();">are you sure?!</button>
+      </span>
+
+      <span ng-show="RunStatsCtrl.runs_selected.length > 100"> Too many runs! </span>
+    </form>
+  </div>
+
+  <div ng-show="RunStatsCtrl.stats">
+    <table class="table hide-actions" dqm-sorted-table="" key="LocParams.p.sortKey" path="sortPath">
+      <thead>
+        <tr>
+          <th dqm-sort-header="run" path="run | dqm_int">Run</th>
+
+          <th dqm-sort-header="run_started">Start</th>
+          <th dqm-sort-header="run_stopped">Stop</th>
+
+          <th dqm-sort-header="file_delivery_mean" path="file_delivery_mean | dqm_float" title="File delivery delay mean for streamDQM">F. mean</th>
+          <th dqm-sort-header="file_delivery_sigma" path="file_delivery_sigma | dqm_float" title="File delivery delay std. dev. for streamDQM">F. sigma</th>
+
+          <th dqm-sort-header="file_delivery_lumi" path="file_delivery_lumi | dqm_int">Lumi</th>
+          <th dqm-sort-header="file_delivery_evt_accepted" path="file_delivery_evt_accepted | dqm_float">Evt. acc.</th>
+          <th dqm-sort-header="file_delivery_fsize" path="file_delivery_fsize | dqm_megabytes">Size</th>
+
+          <th dqm-sort-header="jobs_total" path="jobs_total| dqm_int">Jobs</th>
+          <th dqm-sort-header="jobs_crashed" path="jobs_crashed | dqm_int">Crashed</th>
+
+          <th dqm-sort-header="jobs_max_events_total" path="jobs_max_events_total | dqm_float">Evts</th>
+          <th dqm-sort-header="jobs_max_events_rate" path="jobs_max_events_rate | dqm_float">Rate</th>
+
+        </tr>
+      </thead>
+
+      <tbody ng-hide="RunStatsCtrl.stats.length">
+      <tr class="align-center active"><td colspan="100">no data</td></tr>
+      </tbody>
+
+      <tbody>
+        <tr ng-repeat="doc in (RunStatsCtrl.stats | orderBy:sortPath) track by doc.run">
+          <td class="nowrap">{{ doc.run }}</td>
+          <td class="nowrap">{{ doc.run_started*1000 | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+          <!--td class="nowrap">{{ doc.run_stopped*1000 | date:'yyyy-MM-dd HH:mm:ss' }}</td-->
+          <td class="nowrap">-</td>
+
+          <td class="nowrap">{{ doc.file_delivery_mean | number:2 }}</td>
+          <td class="nowrap">{{ doc.file_delivery_sigma | number:2 }}</td>
+
+          <td class="nowrap">{{ doc.file_delivery_lumi }}</td>
+          <td class="nowrap">{{ doc.file_delivery_evt_accepted }}</td>
+          <td class="nowrap">{{ doc.file_delivery_fsize | dqm_megabytes | number:2 }} mb. </td>
+
+          <td class="nowrap">{{ doc.jobs_total }}</td>
+          <td class="nowrap">{{ doc.jobs_crashed }}</td>
+
+          <td class="nowrap">{{ doc.jobs_max_events_total | number:2 }}</td>
+          <td class="nowrap">{{ doc.jobs_max_events_rate | number:2 }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+</div>

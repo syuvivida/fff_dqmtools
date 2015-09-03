@@ -141,7 +141,6 @@ class Database(object):
             c.execute("SELECT rev, timestamp FROM Headers WHERE timestamp >= ? ORDER BY rev ASC LIMIT 1", (x, ))
             r =  c.fetchone()
 
-            log.info("Shit %s", r);
             c.close()
 
     def direct_transactional_upload(self, bodydoc_generator):

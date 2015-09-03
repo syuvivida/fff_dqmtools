@@ -169,8 +169,15 @@ mod.filter("dqm_disk_pc", function () {
 
 mod.filter("dqm_int", function() {
     return function(input) {
-        var s = input || '';
+        var s = input || 0;
         return parseInt(s);
+    };
+});
+
+mod.filter("dqm_float", function() {
+    return function(input) {
+        var s = input || 0;
+        return parseFloat(s);
     };
 });
 

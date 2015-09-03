@@ -69,7 +69,7 @@ dqmApp.controller('NavigationCtrl', [
                 all.push(token);
             }
         });
-    
+
         return all;
     };
 
@@ -141,7 +141,7 @@ dqmApp.controller('NavigationCtrl', [
             _.each(v, function (host) {
                 me.hosts_allowed[host] = true;
             });
-    
+
             // save the "shortcut"
             var sc_value = _.uniq(_.map(_.values(v), make_token));
             me.hosts_shortcuts[k] = sc_value;
@@ -156,7 +156,7 @@ dqmApp.controller('NavigationCtrl', [
     $scope.$watch(LocParams.watchFunc('hosts'),  update_connections);
 }]);
 
-dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', 'SyncRun', function($scope, $rootScope, SyncPool, LocParams, SyncRun) {
+dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', 'SyncRun', 'RunStats', function($scope, $rootScope, SyncPool, LocParams, SyncRun, RunStats) {
     var me = this;
 
     me.update_run_ptr = function () {
@@ -229,11 +229,50 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
     $scope.LumiRunCtrl = me;
 }]);
 
+dqmApp.controller('RunStatsCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', 'SyncRun', 'RunStats', function($scope, $rootScope, SyncPool, LocParams, SyncRun, RunStats) {
+    var me = this;
+
+    me.update_run_ptr = function () {
+		me.runs = SyncRun.get_runs();
+        me.runs_selected = _.filter(me.runs, function (run) {
+			if (run < LocParams.p.firstRun) return false;
+			if (run > LocParams.p.lastRun) return false;
+
+			return true;
+		});
+    };
+
+	me.select_last = function (n) {
+		var sel = me.runs.slice(0, n);
+		if (sel.length) {
+			LocParams.p.firstRun = sel[sel.length - 1];
+			LocParams.p.lastRun = sel[0];
+		}
+	};
+
+	me.just_do_it = function () {
+		var p = RunStats.get_stats_for_runs(me.runs_selected);
+		p.then(function (stats) {
+			me.stats = stats;
+		});
+	};
+
+    $scope.$watch(SyncRun.get_runs, function (run_lst) {
+        me.update_run_ptr();
+    });
+
+    $scope.$watch(LocParams.watchFunc('firstRun'),  me.update_run_ptr);
+    $scope.$watch(LocParams.watchFunc('lastRun'),  me.update_run_ptr);
+
+    $scope.RunStatsCtrl = me;
+	$scope.RunStats = RunStats;
+}]);
+
+
 dqmApp.config(function($routeProvider, $locationProvider) {
   $routeProvider
     .when('/lumi/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
-    //.when('/stats/', { menu: 'stats', templateUrl: 'templates/stats.html', reloadOnSearch: false })
-    //.when('/lumi/:run/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
+    .when('/stats/', { menu: 'stats', templateUrl: 'templates/stats.html', reloadOnSearch: false })
     .otherwise({ redirectTo: '/lumi' });
 
   // configure html5 to get links working on jsfiddle

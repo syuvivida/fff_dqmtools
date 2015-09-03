@@ -62,6 +62,8 @@
         <td class="nowrap">
           <span ng-show="doc.events_total">{{ doc.events_total }} ({{ doc.events_rate }} evt/s)</span>
           <span ng-hide="doc.events_total">--</span>
+          <a ng-hide="_show_inline == 'lumi_graph'" ng-click="_show_inline = 'lumi_graph'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></a>
+          <a ng-show="_show_inline == 'lumi_graph'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
         <td class="nowrap">
@@ -96,6 +98,12 @@
       <tr ng-if="_show_inline == 'mem_graph'" dqm-refresh="doc">
         <td colspan="100">
           <dqm-memory-graph height="300" width="800" data="doc.extra.mem_info" />
+        </td>
+      </tr>
+
+      <tr ng-if="_show_inline == 'lumi_graph'" dqm-refresh="doc">
+        <td colspan="100">
+          <dqm-lumi-graph height="300" width="800" data="doc.extra.lumi_stats" />
         </td>
       </tr>
 
