@@ -54,6 +54,43 @@
 
   <div ng-show="LumiRunCtrl.run">
 
+    <!-- playback stuff -->
+    <div ng-controller="CachedDocumentCtrl" doc-id="LumiRunCtrl.get_type_ids('dqm-playback')[0]">
+      <div ng-if="doc.extra">
+        <div dqm-refresh="doc" class="runs alert-warning alert run-browser">
+          <strong> Run {{ LumiRunCtrl.run }} is a simulator run! </strong>
+          <div class="alert-separator"></div>
+          Current state: <strong> {{ doc.state }} </strong><br />
+          Current lumi : <strong title="{{ doc.extra.ls_map | json }}"> {{ doc.ls }} <span ng-show="doc.config.number_of_ls > 0"> out of {{ doc.config.number_of_ls }} <span></strong>
+          <a href="" ng-hide="LocParams.p.showFiles" ng-click="LocParams.setKey('showFiles', true)" class="">show file map</a>
+          <a href="" ng-show="LocParams.p.showFiles" ng-click="LocParams.setKey('showFiles', null)" class="">hide</a>
+
+          <ul ng-show="LocParams.p.showFiles">
+            <li ng-repeat="(key, value) in doc.extra.ls_map"> {{ key }} &#8594; {{ value }} </li>
+          </ul>
+
+          <div class="alert-separator"></div>
+
+          <div ng-controller="UtilsCtrl">
+            <span ng-show="doc.state == 'running'">
+              <span ng-hide="command_confirm_">
+                <button type="button" class="btn btn-default btn-sm" ng-click="command_confirm_ = 'next_run'">Skip to the next run</button>
+                <button type="button" class="btn btn-default btn-sm" ng-click="command_confirm_ = 'next_lumi'">Skip to the next lumi</button>
+                <button type="button" class="btn btn-default btn-sm" ng-click="command_confirm_ = 'make_it_crash'">Make it crash (and start a new run) </button>
+              </span>
+            </span>
+
+            <span ng-show="command_confirm_">
+              <button type="button" class="btn btn-sm btn-default" ng-click="command_confirm_ = null;">Don't send "{{ command_confirm_ }}" to fff_simulator!</button>
+              <button type="button" class="btn btn-sm btn-primary" ng-click="command_ = command_confirm_; command_confirm_ = null; sendControlCommand(doc, doc.socket_name, command_);">Send!</button>
+            </span>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- end of playback stuff -->
+
     <ol class="breadcrumb">
       <li>
         <span class="blue">Run <strong>{{ LumiRunCtrl.run }}</strong></span>
@@ -82,6 +119,10 @@
           <a ng-hide="LocParams.p.tsGraph" ng-click="LocParams.setKey('tsGraph', 'all')" class="btn btn-default btn-xs">show all files</a>
           <a ng-show="LocParams.p.tsGraph" ng-click="LocParams.setKey('tsGraph', null)" class="btn btn-success btn-xs">show last 100 files</a>
         </span>
+      </li>
+      <li ng-show="dqm_number == 3">
+        <a ng-hide="LocParams.p.showAny" ng-click="LocParams.setKey('showAny', true)" class="btn btn-info btn-xs">showMisc</a>
+        <a ng-show="LocParams.p.showAny" ng-click="LocParams.setKey('showAny', null)" class="btn btn-warning btn-xs">hideMisc</a>
       </li>
     </ol>
 

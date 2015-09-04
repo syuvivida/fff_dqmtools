@@ -1,16 +1,10 @@
 # Provides control socket for fff_dqmtools' applets.
 # This socket is already used for locking, this just listens to it.
 
-# Must exist after lock wrapper:
-## @fff_dqmtools.lock_wrapper
-## @fff_control.enable_control_socket()
-## def __run__(opts, **kwargs):
-##     pass
-
-# And the applet must not block (ie use gevent sleeps and gevent selects)
-
+# Applet must not block (ie use gevent sleeps and gevent selects)
 # Connectable via socat, eg. socat - ABSTRACT-CONNECT:bd68c7bb.fff_filemonitor
 
+import fff_dqmtools
 import gevent
 import struct
 
@@ -28,7 +22,6 @@ class Ctrl(object):
             write_f("ok\n")
         else:
             write_f("r: %s\n" % line)
-        pass
 
     def handle_conn(self, cli_sock):
         # this function runs in separate greenlet
@@ -54,7 +47,6 @@ class Ctrl(object):
                 f.close()
             cli_sock.close()
 
-
     def run_greenlet(self):
         self.sock.listen(15)
         self.log.info("Control socket open: %s / %s", self.sock, self.lkey)
@@ -63,33 +55,13 @@ class Ctrl(object):
             cli, addr = self.sock.accept()
             gevent.spawn(self.handle_conn, cli)
 
-def enable_control_socket(ctrl_class=Ctrl):
-    """ This is decorator for function.
-    """
+    @classmethod
+    def enable(cls, log, lkey, sock):
+        ctrl = cls(log, sock, lkey)
 
-    def wrapper(actual_f, *args, **kwargs):
-        log = kwargs["logger"]
-
-        try:
-            sock = kwargs["lock_socket"]
-            lkey = kwargs["lock_key"]
-        except:
-            if log:
-                log.warning("Couldn't find a 'lock' socket, make sure fff_dqmtools.lock_wrapper() is enabled.", exc_info=True)
-            raise
-
-        ctrl = Ctrl(log, sock, lkey)
-        kwargs["control_handler"] = ctrl
-
-        actual_t = gevent.spawn(actual_f, *args, **kwargs)
         control_t = gevent.spawn(ctrl.run_greenlet)
-        # do not wait for control_t, it runs forever
-        gevent.joinall([actual_t, ], raise_error=True)
+        return control_t, ctrl
 
-    from functools import partial
-    def wrapping_func(actual_f):
-        return partial(wrapper, actual_f)
-    return wrapping_func
 
 if __name__ == "__main__":
     import sys

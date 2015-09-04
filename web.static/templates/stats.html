@@ -30,14 +30,15 @@
       <span> ({{ RunStatsCtrl.runs_selected.length }} runs)</span>
 
       <div class="alert-separator"></div>
-      <button type="submit" ng-disabled="RunStatsCtrl.runs_selected.length > 100" class="btn btn-primary btn-sm" ng-click="RunStatsCtrl.just_do_it()"> just do it! </button>
+      <button type="submit" ng-disabled="(RunStatsCtrl.runs_selected.length > 1000) || RunStatsCtrl.stats_p._progress" class="btn btn-primary btn-sm" ng-click="RunStatsCtrl.just_do_it()"> just do it! </button>
 
       <span ng-show="RunStats.get_cache_length()">
         <button ng-hide="RunStatsCtrl.clear_cache_confirm_" type="button" class="btn btn-default" ng-click="RunStatsCtrl.clear_cache_confirm_ = true">clear cache</button>
         <button ng-show="RunStatsCtrl.clear_cache_confirm_" type="button" class="btn btn-default" ng-click="RunStatsCtrl.clear_cache_confirm_ = false; RunStats.clear_cache();">are you sure?!</button>
       </span>
 
-      <span ng-show="RunStatsCtrl.runs_selected.length > 100"> Too many runs! </span>
+      <span ng-show="RunStatsCtrl.runs_selected.length > 1000"> Too many runs! </span>
+      <span ng-show="RunStatsCtrl.stats_p._progress"> Loading runs: {{ RunStatsCtrl.stats_p._progress.fetched }} out of {{ RunStatsCtrl.stats_p._progress.total }} </span>
     </form>
   </div>
 

@@ -365,13 +365,10 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
     };
 
     factory._process_reject = function (requests_to_reject, reason) {
-        factory._requests = _.filter(factory._requests, function (request) {
-            if (_.indexOf(requests_to_reject, request, false) !== -1) {
-                request.defer.reject(reason);
-                return false;
-            }
+        factory._requests = _.difference(factory._requests, requests_to_reject);
 
-            return true;
+        _.each(requests_to_reject, function (request) {
+            request.defer.reject(reason);
         });
     };
 
@@ -393,16 +390,17 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
     };
 
     factory._process_timeout = function () {
-        factory._requests = _.filter(factory._requests, function (req) {
+        var to_rej = _.filter(factory._requests, function (req) {
             req.timeout = req.timeout - 1;
 
             if (req.timeout <= 0) {
-                req.defer.reject("timeout reached");
-                return false;
+                return true;
             }
 
-            return true;
+            return false;
         });
+
+        factory._process_reject(to_rej, "timeout reached");
     };
 
     factory.fetch = function (id) {
@@ -468,6 +466,8 @@ mod.factory('CachedDocument', ['SyncPool', 'SyncDocument', '$window', '$http', '
         };
 
         cacher._refresh_document = function (id) {
+            //console.log("refresh", id);
+
             // check if document needs updating
             var doc = cacher._doc_map[id];
             var header = SyncPool._sync_headers[id];
@@ -514,7 +514,7 @@ mod.factory('CachedDocument', ['SyncPool', 'SyncDocument', '$window', '$http', '
             }, function (reason) {
                 // error callback
                 if (reason !== "Fetch cancelled.") {
-                  console.log("Fetch error", doc, reason);
+                  console.log("Fetch error", id, reason);
                 }
 
                 // delete the marker, so it can be re-requested
@@ -860,25 +860,49 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
 
         var prom = CachedDocument.get_ids_no_tracking(ids);
         return prom.then(function (x) {
+            //console.log("Stats doing for run:", run);
             var stats = me.calc_stats(run, x);
             stats["$last_rev"] = last_rev;
             me.cache[run] = stats;
 
-            console.log("Stats done for run:", run, stats);
             return stats;
         });
     };
 
-    me.get_stats_for_runs = function (runs) {
-        var promises = _.map(runs, me.get_run_stats);
-        var p = $q.all(promises).then(function (stats) {
-            console.log("Stats done for all selected runs:", stats)
-            me.save_cache();
+    me.get_stats_for_runs = function (runs0) {
+        var runs = _.clone(runs0);
+        var to_fetch = _.clone(runs0);
+        var fetched = [];
+        var deferred = $q.defer();
+        var promise = deferred.promise;
 
-            return stats;
-        });
+        var make_request_or_return = function () {
+            promise._progress = {
+				'fetched': fetched.length,
+				'total': runs.length
+			};
 
-        return p;
+            if (to_fetch.length > 0) {
+                var batch = to_fetch.splice(0, 15);
+                console.log("requested", batch, batch.length);
+
+                var promises = _.map(batch, me.get_run_stats);
+                var p = $q.all(promises).then(function (stats) {
+                    me.save_cache();
+
+                    _.each(stats, function (stat) {
+                        fetched.push(stat);
+                    });
+
+                    make_request_or_return();
+                });
+            } else {
+                deferred.resolve(fetched);
+            };
+        };
+
+        make_request_or_return();
+        return promise;
     };
 
     me.load_cache();

@@ -13,7 +13,6 @@ import urllib2
 import json
 
 import fff_dqmtools
-import fff_control
 
 def atomic_read_delete(fp):
     import os, stat, fcntl, errno
@@ -237,7 +236,6 @@ class FileMonitor(object):
 
 @fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
-@fff_control.enable_control_socket()
 def __run__(opts, **kwargs):
     global log
     log = kwargs["logger"]

@@ -126,6 +126,7 @@ class Server(object):
                 "logger": logger,
                 "name": applet,
                 "module_name": module_name,
+                "module": mod,
             }
             greenlets.append(gevent.spawn(mod.__run__, **kwargs))
 
@@ -224,7 +225,7 @@ def _pr_set_deathsig():
 
 def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     # find the interpreter and the config file
-    args = [sys.executable, "-m", module_name]
+    args = [sys.executable, "-m", "fff_dqmtools", module_name]
 
     env = os.environ.copy()
     env["PYTHONPATH"] = __ipath__ + ":" + env.get("PYTHONPATH", "")
@@ -266,7 +267,29 @@ def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     finally:
         proc.stdout.close()
 
-def fork_wrapper_decorate(func, module_name, **wrapper_kwargs):
+def _execute_child():
+    kwargs = json.loads(os.getenv("FFF_DQMTOOLS_CHILD"))
+
+    # prepare logging for the applet
+    logger = LogCaptureHandler.create_logger_subprocess(kwargs["name"])
+    logger.info("Synchronized process (child) %d", os.getpid())
+    kwargs["logger"] = logger
+    kwargs["fork"] = True
+
+    # check for setuid
+    name = pwd.getpwuid(os.getuid())[0]
+    logger.info("Running as uid=%s(%s) gid=%s groups=(%s)", os.getuid(), name, os.getgid(), os.getgroups())
+    
+    # just run the function and exit
+    applet = kwargs["name"]
+    module_name = "applets." + applet
+    _mod_package = __import__(module_name)
+    mod = getattr(_mod_package, applet)
+
+    ret = mod.__run__(**kwargs)
+    sys.exit(ret)
+
+def fork_wrapper_decorate(func, **wrapper_kwargs):
     # this function (decorator) has two entries:
     # 1. then the applet is declared (but not launched).
     # in this case we return a wrapper function which will:
@@ -282,30 +305,15 @@ def fork_wrapper_decorate(func, module_name, **wrapper_kwargs):
     # have nice process names in ps auxf
 
     ## first check if we are in a child
-    if module_name == "__main__" and os.getenv("FFF_DQMTOOLS_CHILD") is not None:
-        # we are, prepare some stuff first
-        kwargs = json.loads(os.getenv("FFF_DQMTOOLS_CHILD"))
-
-        # prepare logging for the applet
-        logger = LogCaptureHandler.create_logger_subprocess(kwargs["name"])
-        logger.info("Synchronized process %d", os.getpid())
-        kwargs["logger"] = logger
-        kwargs["fork"] = True
-
-        # check for setuid
-        if wrapper_kwargs.has_key("uid"):
-            name = pwd.getpwuid(os.getuid())[0]
-            logger.info("Running as uid=%s(%s) gid=%s groups=(%s)", os.getuid(), name, os.getgid(), os.getgroups())
-
-        # just run the function and exit
-        ret = func(**kwargs)
-
-        sys.exit(ret)
-        # os._exit(-1)
+    if os.getenv("FFF_DQMTOOLS_CHILD") is not None:
+        return func
     else:
         def execute_loop(**kwargs):
             # get the logger, it is set up by Server()
             logger = kwargs["logger"]
+
+            module_name = kwargs["module_name"]
+            print kwargs["module"]
 
             kwopts = {
                 "opts": kwargs["opts"],
@@ -329,8 +337,8 @@ def fork_wrapper_decorate(func, module_name, **wrapper_kwargs):
         # we have to return a function a new function
         return execute_loop
 
-def fork_wrapper(name, **wrapper_kwargs):
-    return lambda f: fork_wrapper_decorate(f, name, **wrapper_kwargs)
+def fork_wrapper(__name_mod, **wrapper_kwargs):
+    return lambda f: fork_wrapper_decorate(f, **wrapper_kwargs)
 
 def detach(logfile, pidfile):
     # do the double fork
@@ -381,11 +389,16 @@ def detach(logfile, pidfile):
 ##        os.execv(sys.executable, args)
 
 if __name__ == "__main__":
+    if os.getenv("FFF_DQMTOOLS_CHILD") is not None:
+        _execute_child()
+        sys.exit(1) # child should exit itself
+
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner", "fff_logcleaner_gzip", "fff_filemonitor",
         "fff_deleter", "fff_deleter_c2f11_09_01", "fff_deleter_transfer", "fff_deleter_minidaq",
         "fff_deleter_lookarea", "fff_deleter_playback",
         "fff_deleter_playback_c2f11_13_01", "fff_deleter_lookarea_c2f11_19_01",
+        "fff_simulator",
         "analyze_files",
     ]
 

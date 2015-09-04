@@ -1,6 +1,6 @@
 var mod = angular.module('dqm.utils', ['dqm.ui', 'ui.bootstrap']);
 
-mod.controller('UtilsCtrl', ['$scope', '$http', '$modal', '$window', 'Alerts', function ($scope, $http, $modal, $window, Alerts) {
+mod.controller('UtilsCtrl', ['$scope', '$http', '$modal', '$window', 'Alerts', 'SyncPool', function ($scope, $http, $modal, $window, Alerts, SyncPool) {
     $scope.openDeleteDialog = function (ids_) {
         var ids = _.clone(ids_);
         ids.sort();
@@ -52,6 +52,34 @@ mod.controller('UtilsCtrl', ['$scope', '$http', '$modal', '$window', 'Alerts', f
             });
         }, function () {
             // aborted, do nothing
+        });
+    };
+
+    $scope.sendControlCommand = function (doc, socket_name, command) {
+        var body = {
+            'socket_name': socket_name,
+            'command': command,
+        };
+
+        // find a hostname to send the request
+        var header = SyncPool._sync_headers[doc._id];
+        var uri = header._source;
+
+        var re = /^(ws|wss|http|https)\:\/\/(.+)\:(\d+)\/(sync|sync_proxy)$/;
+        var tokens = uri.match(re);
+        if (! tokens) {
+            throw "Can't decode _source: " + uri;
+        }
+
+        var http_uri = "http://" + tokens[2] + ":" + tokens[3];
+        var full_uri = http_uri + "/utils/control_command/" + socket_name + "/" + command;
+
+        //console.log("doing control command", full_uri);
+        var p = $http.post(full_uri, "");
+        p.then(function (resp) {
+            Alerts.addAlert({ type: 'success', strong: "Success!", comment: resp.data });
+        }, function (resp) {
+            Alerts.addAlert({ type: 'danger', strong: "Failure!", comment: resp.data });
         });
     };
 

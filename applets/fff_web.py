@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import json
+import re
 import sqlite3
 import os, sys, time
 import socket
@@ -571,18 +572,34 @@ class WebServer(bottle.Bottle):
             #return "".join(chain)
             return chain
 
-        ### @app.route("/sync_proxy_get/<messages>", method=["GET"])
-        ### def sync_proxy_get(messages):
-        ###     # this is for debugging, msg is base64,base64,base64
-        ###     from bottle import request, response
+        @app.route("/utils/control_command/<name>/<cmd>", method=['OPTIONS', 'POST'])
+        @enable_cors
+        def control_command(name, cmd):
+            from bottle import response
 
-        ###     lst = map(lambda x: x.decode("base64"), messages.split(","))
-        ###     output = SyncSocket.proxy_mode(lst, peer_address=request.remote_addr)
+            group = re.match(r"^(\w+)\.(\w+)$", name)
+            if group is None:
+                raise bottle.HTTPResponse("Invalid socket (lock) key, access denied.", status=401)
 
-        ###     response.content_type = 'application/json'
-        ###     return json.dumps({
-        ###         'messages': output
-        ###     })
+            if group.group(2) not in ["fff_simulator"]:
+                raise bottle.HTTPResponse("Invalid socket (lock) name, access denied.", status=401)
+
+            if cmd not in ["status", "restart", "next_run", "next_lumi", "make_it_crash"]:
+                raise bottle.HTTPResponse("Invalid command, access denied.", status=401)
+
+            #sys.stderr.write("Using socket: %s\n" % lkey)
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.connect("\0" + name)
+            sock.sendall(cmd + "\n")
+            sock.shutdown(socket.SHUT_WR)
+
+            while True:
+                data = sock.recv(4096)
+                if len(data) == 0:
+                    break
+
+                yield data
+            sock.close()
 
         @app.route("/sync_proxy", method=["OPTIONS", "POST"])
         @enable_cors

@@ -7,7 +7,8 @@ a.label-run { margin: 5px; }
 div.label-run { margin-bottom: 10px; }
 span.delay { margin-left: 15px; }
 
-div.alert-separator {  margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #5BC0DE; }
+.alert-success div.alert-separator {  margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #5BC0DE; }
+.alert-warning div.alert-separator {  margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #8A6D3B; }
 
 .theme-showcase > p > .btn {
   margin: 5px 0;

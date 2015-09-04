@@ -28,6 +28,7 @@ mod.directive('alertBrowser', ['Alerts', function (Alerts) {
             + '<alert ng-repeat="alert in Alerts.alerts" type="{{ alert.type }}" close="Alerts.closeAlert($index)">'
             + '  <strong ng-show="alert.strong">{{ alert.strong }}</strong>'
             + '  {{ alert.msg }}'
+            + '  <br />{{ alert.comment}}'
             + '</alert>',
     };
 }]);
