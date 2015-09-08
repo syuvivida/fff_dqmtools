@@ -24,6 +24,16 @@ from applets.fff_filemonitor import atomic_create_write
 log = logging.getLogger("fff_simulator")
 
 class SimulatorRun(object):
+    """ A class to represent an active run.
+
+        Run number should already be allocated by the manager.
+
+        The class shouldn't handle operational errors (ie run directory already exists),
+        but rather just crash (or enter 'error' state).
+
+        This is easier to debug and to handle.
+    """
+
     def __init__(self, manager, config, kwargs):
         self.manager = manager
         self.config = config
@@ -40,7 +50,13 @@ class SimulatorRun(object):
         self.control_event = gevent.event.Event()
 
     def write_state(self, next_state=None):
-        # internal function which updates the current state
+        """
+            Internal function which updates the current state of the run.
+            It's called every state transition.
+
+            Additionally it writes ./status and DQM^2 report files.
+        """
+
         if next_state is not None:
             self.state = next_state
 
@@ -83,6 +99,13 @@ class SimulatorRun(object):
             log.info("Made report file: %s", final_fp)
 
     def run_unsafe(self):
+        """
+            The 'main' code of the run.
+            It is 'unsafe' because it might throw an exception.
+
+            'run()' is the 'safe' version of this method.
+        """
+
         # create some directories
         while self.state == "init":
             self.discover_files()
@@ -107,8 +130,16 @@ class SimulatorRun(object):
             self.write_state("stopped")
 
     def control(self, line, write_f):
-        # this is called from command line (using fff_control)
-        # this can _and_ most likely will happen while we are inside run()
+        """ Called from outside this class to control the state (run_unsafe()).
+
+            It is usually and most likely called outside this class
+            from another 'greenlet' while 'run()' is in progress.
+
+            While it's not necessary to synchronize gevent threads,
+            self.control_event still does some synchronization (to interrupt transition timeout).
+
+        """
+
         def send(txt):
             write_f("run%d: %s\n" % (self.config["run"], txt))
 
@@ -143,7 +174,10 @@ class SimulatorRun(object):
             send("error: unknown command")
 
     def run(self):
-        # safe version of run()
+        """ Safe version of run_unsafe().
+
+            Should be called once we are ready to run.
+        """
 
         try:
             self.run_unsafe()
@@ -155,8 +189,12 @@ class SimulatorRun(object):
             except:
                 pass
 
-    # checks if file is okay (not truncated and still exists)
     def file_ok(self, fp):
+        """ Checks if files are okay for re-copy.
+
+            See make_copy() for details.
+        """
+
         if ((".deleted" in fp) or
             (not os.path.exists(fp)) or
             (os.stat(fp).st_size == 0)):
@@ -166,9 +204,15 @@ class SimulatorRun(object):
         return True
 
     def make_copy(self, source, dest):
-        # this is a "smart" copy
-        # if file wasn't copied to the dest directory -> copy it from source
-        # if file exists in the dest directory (but with a different name) -> copy it from the old file
+        """ Performs a smart copy.
+
+            The logic is:
+              - if file wasn't copied to the dest directory -> copy it from source
+              - if file exists in the dest directory (but with a different name) -> copy it from the old file
+
+            The idea is to speed up copying if _files_ are outside the ramdisk.
+            If playback files are on ramdisk, this has no effect.
+        """
 
         if not hasattr(self, "_copy_map"):
             self._copy_map = {}
@@ -337,6 +381,12 @@ class SimulatorRun(object):
         self.manager.register_files_for_cleanup(run, play_lumi, written_files)
 
 class RunManager(object):
+    """
+        A helper class to manage multiple runs.
+
+        This class handles deletion of the old runs, file cleanup, and run number allocation.
+    """
+
     def __init__(self, kwargs):
         self.kwargs = kwargs
         self.file_cleanup_backlog = []
@@ -370,6 +420,13 @@ class RunManager(object):
         return latest_run
 
     def manage_forever(self):
+        """ Starts new runs indefinetly...
+
+            ... until run crashes or goes into 'error' state.
+
+            In this case the error will be logged and the whole application will be restarted.
+        """
+
         while True:
             self.load_config()
 
@@ -386,6 +443,11 @@ class RunManager(object):
                 return 1
 
     def on_start_cleanup(self):
+        """ Cleanup directory.
+
+            Should be called before manage_forever().
+        """
+
         config = self.load_config()
 
         for f in os.listdir(config["ramdisk"]):
@@ -433,7 +495,9 @@ class RunManager(object):
     def register_files_for_cleanup(self, run, lumi, written_files):
         """
             Deletes files which are older than number_of_ls_to_keep config parameter.
-            This works across runs!.
+            Be aware that this works across runs (and so does number_of_ls_to_keep parameter)!
+
+            This is usually called from inside SimulatorRun class.
         """
 
         if self.config["number_of_ls_to_keep"] >= 0:
@@ -451,8 +515,18 @@ import fff_control
 import fff_cluster
 
 class FFFSimulatorSocket(fff_control.Ctrl):
+    """
+        This is a proxy to access run manager from a control socket.
+
+        fff_control.Ctrl already handles client connections,
+        all we have to do override handle_line function.
+
+        Run manager should be set via "manager" member.
+    """
+
     def handle_line(self, line, write_f):
-        # override me
+        # get current SimulatorRun object
+        # and pass the command to it
         run = getattr(getattr(self, 'manager', None), "current_run", None)
         if run is None:
             write_f("no active run\n")
