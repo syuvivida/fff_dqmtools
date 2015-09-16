@@ -252,22 +252,25 @@ class FileDeleter(object):
             self.make_report(files)
             gevent.sleep(self.delay_seconds)
 
-@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
-@fff_dqmtools.fork_wrapper(__name__)
-@fff_dqmtools.lock_wrapper
-def __run__(opts, **kwargs):
-    log = kwargs["logger"]
+## Applet code is no longer used, but serves as an example.
+## Actual deleters applets should import this module
 
-    service = FileDeleter(
-        top = opts["deleter.ramdisk"],
-        app_tag = opts["deleter.tag"],
-        thresholds = {
-            'rename': 60,
-            'delete': 80,
-        },
-        log = log,
-        report_directory = opts["path"],
-        fake = opts["deleter.fake"],
-    )
-
-    service.run_greenlet()
+## @fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01"])
+## @fff_dqmtools.fork_wrapper(__name__)
+## @fff_dqmtools.lock_wrapper
+## def __run__(opts, **kwargs):
+##     log = kwargs["logger"]
+##
+##     service = FileDeleter(
+##         top = opts["deleter.ramdisk"],
+##         app_tag = opts["deleter.tag"],
+##         thresholds = {
+##             'rename': 60,
+##             'delete': 80,
+##         },
+##         log = log,
+##         report_directory = opts["path"],
+##         fake = opts["deleter.fake"],
+##     )
+##
+##     service.run_greenlet()
