@@ -516,7 +516,7 @@ class RunManager(object):
                 log.info("Skipping old run directory: %s, state = %s, %s != %s", run_directory, status["state"], my_key, their_key)
 
         to_keep = int(config["number_of_runs_to_keep"])
-        to_delete = directories_to_delete[-to_keep:]
+        to_delete = directories_to_delete[:-to_keep]
         for rd in to_delete:
             self.delete_run_directory(rd)
 

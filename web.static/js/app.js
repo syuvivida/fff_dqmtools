@@ -164,7 +164,9 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
 
         me.latest_run = me.runs[0];
         if (LocParams.p.trackRun) {
-            if ((me.latest_run !== undefined) && (me.run < me.latest_run)) {
+            if ((me.latest_run !== undefined) && (!(me.run >= me.latest_run))) {
+                me.run = me.latest_run;
+                me.run_ = me.latest_run;
                 LocParams.p.run = me.latest_run;
                 return;
             }
@@ -222,7 +224,13 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
         me.update_run_ptr();
     });
 
-    $scope.$watch(LocParams.watchFunc('trackRun'),  function (run) {
+    $scope.$watch(LocParams.watchFunc('trackRun'),  function (run, old_value) {
+		// reset the run if the button was pressed
+        if ((old_value === undefined) && (run === true)) {
+            me.run = undefined;
+            me.run_ = undefined;
+        };
+
         me.update_run_ptr();
     });
 
@@ -233,33 +241,33 @@ dqmApp.controller('RunStatsCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParam
     var me = this;
 
     me.update_run_ptr = function () {
-		me.runs = SyncRun.get_runs();
+        me.runs = SyncRun.get_runs();
         me.runs_selected = _.filter(me.runs, function (run) {
-			if (run < LocParams.p.firstRun) return false;
-			if (run > LocParams.p.lastRun) return false;
+            if (run < LocParams.p.firstRun) return false;
+            if (run > LocParams.p.lastRun) return false;
 
-			return true;
-		});
+            return true;
+        });
     };
 
-	me.select_last = function (n) {
-		var sel = me.runs.slice(0, n);
-		if (sel.length) {
-			LocParams.p.firstRun = sel[sel.length - 1];
-			LocParams.p.lastRun = sel[0];
-		}
-	};
+    me.select_last = function (n) {
+        var sel = me.runs.slice(0, n);
+        if (sel.length) {
+            LocParams.p.firstRun = sel[sel.length - 1];
+            LocParams.p.lastRun = sel[0];
+        }
+    };
 
-	me.just_do_it = function () {
-		var p = RunStats.get_stats_for_runs(me.runs_selected);
-		p.then(function (stats) {
-			me.stats = stats;
+    me.just_do_it = function () {
+        var p = RunStats.get_stats_for_runs(me.runs_selected);
+        p.then(function (stats) {
+            me.stats = stats;
             me.stats_csv = RunStats.stats_to_csv(stats);
-			me.stats_p = null;
-		});
+            me.stats_p = null;
+        });
 
-		me.stats_p = p;
-	};
+        me.stats_p = p;
+    };
 
     $scope.$watch(SyncRun.get_runs, function (run_lst) {
         me.update_run_ptr();
@@ -269,7 +277,7 @@ dqmApp.controller('RunStatsCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParam
     $scope.$watch(LocParams.watchFunc('lastRun'),  me.update_run_ptr);
 
     $scope.RunStatsCtrl = me;
-	$scope.RunStats = RunStats;
+    $scope.RunStats = RunStats;
 }]);
 
 
