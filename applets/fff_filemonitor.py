@@ -58,7 +58,7 @@ def atomic_read_delete(fp):
 
     return b
 
-def atomic_create_write(fp, body):
+def atomic_create_write(fp, body, mode=0600):
     import tempfile
 
     dir = os.path.dirname(fp)
@@ -68,6 +68,9 @@ def atomic_create_write(fp, body):
     tmp_fp = f.name
     f.write(body)
     f.close()
+
+    if mode != 0600:
+        os.chmod(tmp_fp, mode)
 
     os.rename(tmp_fp, fp)
 

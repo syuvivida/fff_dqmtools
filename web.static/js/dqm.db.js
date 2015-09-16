@@ -735,26 +735,36 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
     // $last_rev should match (or the cache is cleared)
     me.cache = {};
 
+    me.stats_array = [
+        { key: "run", title: "Run number", 'default': -1 },
+        { key: "run_started", title: "Run started timestamp (mtime on the .global file)", 'default': null },
+        { key: "run_stopped", title: "Run stopped timestamp (no more applications running)", 'default': null },
+
+        { key: "file_delivery_mean", title: "Average file delivery delay (streamDQM)", 'default': 0 },
+        { key: "file_delivery_sigma", title: "Standard deviation for file delivery delay (streamDQM)", 'default': 0 },
+
+        { key: "file_delivery_mean:DQMHistograms", title: "Average file delivery delay (streamDQMHistograms)", 'default': 0 },
+        { key: "file_delivery_sigma:DQMHistograms", title: "Standard deviation for file delivery delay (streamDQMHistograms)", 'default': 0 },
+
+        { key: "file_delivery_lumi", title: "Last lumisection delivered", 'default': -1 },
+        { key: "file_delivery_evt_accepted", title: "Number of events delivered (across all streams)", 'default': -1 },
+        { key: "file_delivery_fsize", title: "Total number of bytes delivered (all streams)", 'default': -1 },
+
+        { key: "jobs_total", title: "Total number of DQM jobs", 'default': -1 },
+        { key: "jobs_crashed", title: "Total number of DQM jobs which didn't exit properly", 'default': -1 },
+
+        { key: "jobs_max_events_total", title: "Max number of events processed by a single job", 'default': -1 },
+        { key: "jobs_max_events_rate", title: "Max event rate processed by a single job", 'default': -1 },
+
+    ];
+
+    me.stats_dict = {};
+    _.each(me.stats_array, function (o) { me.stats_dict[o.key] = o; })
+
     me.calc_stats = function (run, docs) {
-        var stats = {
-            'run': run,
-
-            'run_started': null,
-            'run_stopped': null,
-
-            'file_delivery_mean': 0,
-            'file_delivery_sigma': 0,
-
-            'file_delivery_lumi': -1,
-            'file_delivery_evt_accepted': -1,
-            'file_delivery_fsize': -1,
-
-            'jobs_total': 0,
-            'jobs_crashed': 0,
-
-            'jobs_max_events_total': 0,
-            'jobs_max_events_rate': 0,
-        };
+        var stats = {};
+        _.each(me.stats_array, function (o) { stats[o.key] = o['default']; })
+        stats['run'] = run;
 
         _.each(docs, function (doc) {
             if (doc.type == 'dqm-files') {
@@ -802,11 +812,13 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
                     stats.jobs_crashed += 1;
 
                 if (stats["jobs_max_events_total"] < doc.events_total)
-                    stats["jobs_max_events_total"] =  doc.events_total;
+                    stats["jobs_max_events_total"] = doc.events_total;
 
                 if (stats["jobs_max_events_rate"] < doc.events_rate)
-                    stats["jobs_max_events_rate"] =  doc.events_rate;
+                    stats["jobs_max_events_rate"] = doc.events_rate;
 
+                if (stats["run_stopped"] < doc.timestamp)
+                    stats["run_stopped"] = doc.timestamp;
             }
 
         });
@@ -878,9 +890,9 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
 
         var make_request_or_return = function () {
             promise._progress = {
-				'fetched': fetched.length,
-				'total': runs.length
-			};
+                'fetched': fetched.length,
+                'total': runs.length
+            };
 
             if (to_fetch.length > 0) {
                 var batch = to_fetch.splice(0, 15);
@@ -903,6 +915,32 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
 
         make_request_or_return();
         return promise;
+    };
+
+    me.stats_to_csv = function (stats_list) {
+        var lines = [];
+
+        // generate header
+        var keys = _.pluck(me.stats_array, 'key');
+        lines.push(keys.join(","));
+
+        // generate decriptions
+        _.each(me.stats_array, function (o) {
+            lines.push("#   " + o.key + " - " + o.title);
+        });
+
+        // now the actual data
+        var sorted = _.sortBy(stats_list, 'run');
+
+        _.each(sorted, function (stats) {
+            var values = _.map(keys, function (key) {
+                return stats[key];
+            });
+
+            lines.push(values.join(","));
+        });
+
+        return lines.join("\n") + "\n";
     };
 
     me.load_cache();

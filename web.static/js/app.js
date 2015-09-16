@@ -254,6 +254,7 @@ dqmApp.controller('RunStatsCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParam
 		var p = RunStats.get_stats_for_runs(me.runs_selected);
 		p.then(function (stats) {
 			me.stats = stats;
+            me.stats_csv = RunStats.stats_to_csv(stats);
 			me.stats_p = null;
 		});
 

@@ -21,6 +21,11 @@ import logging
 
 from applets.fff_filemonitor import atomic_create_write
 
+# usually atomic_create_write writes files with 0600 mask.
+# we need a bit more readable files instead.
+def atomic_write(filename, content):
+    return atomic_create_write(filename, content, mode=0644)
+
 log = logging.getLogger("fff_simulator")
 
 class SimulatorRun(object):
@@ -77,7 +82,7 @@ class SimulatorRun(object):
 
         status["extra"] = extra
         status_fn = os.path.join(self.run_directory, "status")
-        atomic_create_write(status_fn, json.dumps(status, indent=2))
+        atomic_write(status_fn, json.dumps(status, indent=2))
 
         # whatever happens now will only be written into dqm^2
         if hasattr(self, 'streams_found'):
@@ -109,8 +114,8 @@ class SimulatorRun(object):
         # create some directories
         while self.state == "init":
             self.discover_files()
-            self.create_run_directory()
             self.create_global_file()
+            self.create_run_directory()
             self.write_state("running")
 
         # run stuff
@@ -285,13 +290,13 @@ class SimulatorRun(object):
         run_write_file = self.config.get("run_write_file", None)
         if run_write_file:
             try:
-                atomic_create_write(run_write_file, str(self.config["run"]))
+                atomic_write(run_write_file, str(self.config["run"]))
             except:
                 log.warning("Error writing the run number to the persistant storage.", exc_info=True)
 
         # create config file (for book-keeping)
         cf = os.path.join(rd, "config")
-        atomic_create_write(cf, json.dumps(self.config, indent=2))
+        atomic_write(cf, json.dumps(self.config, indent=2))
 
         # Now the famous Atanas hack to give inotify time to work correctly
         import gevent
@@ -302,13 +307,13 @@ class SimulatorRun(object):
         file_name = '.run%d.global' % self.config["run"]
         full_name = os.path.join(self.config["ramdisk"], file_name)
 
-        atomic_create_write(full_name, 'run_key = %s' % self.config["run_key"])
+        atomic_write(full_name, 'run_key = %s' % self.config["run_key"])
         log.info('Created hidden .global run file %s' % full_name)
 
     def create_eor(self):
         file_name = 'run%d_ls0000_EoR.jsn' % self.config["run"]
         full_name = os.path.join(self.run_directory, file_name)
-        atomic_create_write(full_name, "")
+        atomic_write(full_name, "")
         log.info('Wrote EoR (end of run) file: %s' % full_name)
 
     def start_new_lumisection(self):
@@ -370,7 +375,7 @@ class SimulatorRun(object):
                 # this has to be atomic!
                 jsn_data["data"][3] = dat_play_fn
                 new_jsn_data = json.dumps(jsn_data)
-                atomic_create_write(output_join(jsn_play_fn), new_jsn_data)
+                atomic_write(output_join(jsn_play_fn), new_jsn_data)
 
                 written_files.add(output_join(jsn_play_fn))
 
@@ -403,10 +408,10 @@ class RunManager(object):
 
     def find_run_number(self):
         # find an empty run number
-        known_runs = [self.min_run_number,]
+        known_runs = [self.min_run_number, int(self.config["run"])]
 
         cl = os.path.join(self.config["ramdisk"], "current")
-        if os.path.exists(cl) and os.path.islink(cl):
+        if os.path.lexists(cl) and os.path.islink(cl):
             dest = os.readlink(cl)
             known_runs.append(int(dest.strip("run")))
 
