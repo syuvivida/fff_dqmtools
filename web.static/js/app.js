@@ -164,7 +164,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
 
         me.latest_run = me.runs[0];
         if (LocParams.p.trackRun) {
-            if ((me.latest_run !== undefined) && (me.run != me.latest_run)) {
+            if ((me.latest_run !== undefined) && (me.run < me.latest_run)) {
                 LocParams.p.run = me.latest_run;
                 return;
             }
