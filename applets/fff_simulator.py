@@ -8,8 +8,6 @@
 # The most important setting is obviously the location of the run to simulate.
 # More information on the settings can be found in the configuration file.
 
-CONFIGURATION_FILE = '/etc/fff_simulator_dqmtools.conf'
-
 import os
 import re
 import sys
@@ -399,7 +397,8 @@ class RunManager(object):
 
     def load_config(self):
         try:
-            with open(CONFIGURATION_FILE, "r") as f:
+            config_file = self.kwargs["opts"]["simulator.conf"]
+            with open(config_file, "r") as f:
                 self.config = json.load(f)
                 return dict(self.config)
         except:
@@ -447,6 +446,30 @@ class RunManager(object):
             if r.state == "error":
                 return 1
 
+    def delete_run_directory(self, run_directory):
+        log.info("Deleting old run directory: %s", run_directory)
+        shutil.rmtree(run_directory, ignore_errors=True)
+
+        # delete global file as well
+        r = os.path.dirname(run_directory)
+        f = os.path.basename(run_directory)
+
+        global_file = os.path.join(r, "." + f + ".global")
+        if os.path.isfile(global_file):
+            log.info("Deleting old global file: %s", global_file)
+            os.unlink(global_file)
+
+    def clean_run_directory(self, run_directory):
+        log.info("Cleaning old run directory: %s", run_directory)
+        lst = os.listdir(run_directory)
+
+        ext_to_clean = [".dat", ".pb"]
+        for f in lst:
+            _q, ext = os.path.splitext(f)
+            if ext in ext_to_clean:
+                fp = os.path.join(run_directory, f)
+                log.info("Deleting orphaned file: %s", fp)
+
     def on_start_cleanup(self):
         """ Cleanup directory.
 
@@ -454,6 +477,7 @@ class RunManager(object):
         """
 
         config = self.load_config()
+        directories_to_delete = []
 
         for f in os.listdir(config["ramdisk"]):
             if not f.startswith("run"):
@@ -486,16 +510,15 @@ class RunManager(object):
             their_key = status.get("socket_name", "")
 
             if my_key == their_key:
-                log.info("Deleting old run directory: %s, state = %s", run_directory, status["state"])
-                shutil.rmtree(run_directory, ignore_errors=True)
-
-                # delete global file as well
-                global_file = os.path.join(config["ramdisk"], "." + f + ".global")
-                if os.path.isfile(global_file):
-                    log.info("Deleting old global file: %s", global_file)
-                    os.unlink(global_file)
+                self.clean_run_directory(run_directory)
+                directories_to_delete.append(run_directory)
             else:
                 log.info("Skipping old run directory: %s, state = %s, %s != %s", run_directory, status["state"], my_key, their_key)
+
+        to_keep = int(config["number_of_runs_to_keep"])
+        to_delete = directories_to_delete[-to_keep:]
+        for rd in to_delete:
+            self.delete_run_directory(rd)
 
     def register_files_for_cleanup(self, run, lumi, written_files):
         """
@@ -513,7 +536,8 @@ class RunManager(object):
 
                 log.info("Deleting %d files for old run/lumi: %d/%d", len(files_to_delete), old_run, old_lumi)
                 for f in files_to_delete:
-                    os.unlink(f)
+                    if os.path.exists(f):
+                        os.unlink(f)
 
 import fff_dqmtools
 import fff_control

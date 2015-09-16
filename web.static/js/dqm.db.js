@@ -750,8 +750,8 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
         { key: "file_delivery_evt_accepted", title: "Number of events delivered (across all streams)", 'default': -1 },
         { key: "file_delivery_fsize", title: "Total number of bytes delivered (all streams)", 'default': -1 },
 
-        { key: "jobs_total", title: "Total number of DQM jobs", 'default': -1 },
-        { key: "jobs_crashed", title: "Total number of DQM jobs which didn't exit properly", 'default': -1 },
+        { key: "jobs_total", title: "Total number of DQM jobs", 'default': 0 },
+        { key: "jobs_crashed", title: "Total number of DQM jobs which didn't exit properly", 'default': 0 },
 
         { key: "jobs_max_events_total", title: "Max number of events processed by a single job", 'default': -1 },
         { key: "jobs_max_events_rate", title: "Max event rate processed by a single job", 'default': -1 },

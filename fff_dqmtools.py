@@ -279,7 +279,7 @@ def _execute_child():
     # check for setuid
     name = pwd.getpwuid(os.getuid())[0]
     logger.info("Running as uid=%s(%s) gid=%s groups=(%s)", os.getuid(), name, os.getgid(), os.getgroups())
-    
+
     # just run the function and exit
     applet = kwargs["name"]
     module_name = "applets." + applet
@@ -416,6 +416,8 @@ if __name__ == "__main__":
         "deleter.ramdisk": "/fff/ramdisk/",
         "deleter.tag": "fff_deleter",
         "deleter.fake": False,
+
+        "simulator.conf": "/etc/fff_simulator_dqmtools.conf",
     }
 
     key_types = {
@@ -428,6 +430,8 @@ if __name__ == "__main__":
         "deleter.ramdisk": str,
         "deleter.tag": str,
         "deleter.fake": bool,
+
+        "simulator.conf": str,
     }
 
     import fff_cluster
