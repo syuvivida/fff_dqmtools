@@ -256,8 +256,14 @@ mod.directive('dqmLog', function ($window, $interval) {
             var format_log = function (log) {
                 if (_.isArray(log)) {
                     var rlog = _.clone(log);
-                    rlog.reverse();
                     return rlog.join("");
+                }
+
+                if ((log.slice(0, 2) == "[\n") && (log.slice(-2) == "\n]")) {
+                    // esMonitoring bug, puts json in a text field
+                    console.log("hey");
+                    var arr = JSON.parse(log);
+                    return arr.join("");
                 }
 
                 return "logfile not available";

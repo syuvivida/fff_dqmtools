@@ -42,36 +42,36 @@
         <td class="nowrap">
             {{ doc.tag | dqm_shorten_tag }}
             <a ng-hide="_show_inline == 'cmd'" ng-click="_show_inline = 'cmd'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
-            <a ng-show="_show_inline == 'cmd'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+            <a ng-show="_show_inline == 'cmd'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
         <td class="nowrap actions">
           {{ doc.cmssw_lumi }}
           <a ng-hide="_show_inline == 'lumi'" ng-click="_show_inline = 'lumi'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
-          <a ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
         <td class="nowrap actions">
           {{ doc.extra.ps_info.VmRSS | dqm_megabytes | number:0 }} mb
           <a ng-hide="_show_inline == 'ps_info'" ng-click="_show_inline = 'ps_info'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
-          <a ng-show="_show_inline == 'ps_info'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'ps_info'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
           <a ng-hide="_show_inline == 'mem_graph'" ng-click="_show_inline = 'mem_graph'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></a>
-          <a ng-show="_show_inline == 'mem_graph'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'mem_graph'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
         <td class="nowrap">
           <span ng-show="doc.events_total">{{ doc.events_total }} ({{ doc.events_rate }} evt/s)</span>
           <span ng-hide="doc.events_total">--</span>
           <a ng-hide="_show_inline == 'lumi_graph'" ng-click="_show_inline = 'lumi_graph'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-picture"></span></a>
-          <a ng-show="_show_inline == 'lumi_graph'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'lumi_graph'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
 
         <td class="nowrap">
           <a ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></a>
-          <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
 
           <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
-          <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="hover-hide btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
           <a ng-href="http://{{ doc.hostname }}:9215/utils/show_log/{{ doc._id }}" target="_blank" class="hover-hide btn btn-default btn-xs">full log</a>
 
         </td>
@@ -80,6 +80,7 @@
       <tr ng-if="_show_inline == 'log'" dqm-refresh="doc">
         <td colspan="100">
           <dqm-log log="doc.extra.stdlog_start"></dqm-log>
+          <dqm-log log="doc.extra.stdlog_end"></dqm-log>
         </td>
       </tr>
 

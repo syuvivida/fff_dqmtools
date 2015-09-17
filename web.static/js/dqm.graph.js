@@ -131,7 +131,7 @@ mod.directive('dqmLumiGraph', function ($window) {
                 .tickFormat(d3.time.format('%X'));
 
             chart.yAxis
-                .axisLabel('Events')
+                .axisLabel('Events processed last lumi')
                 .tickFormat(d3.format('.02f'));
 
             scope.$watch("data", function (data) {
@@ -144,7 +144,7 @@ mod.directive('dqmLumiGraph', function ($window) {
                 keys.sort()
 
                 var streams = {
-                    'events': {
+                    'nevents': {
                         'key': 'Events',
                         'values': []
                     }
@@ -152,7 +152,7 @@ mod.directive('dqmLumiGraph', function ($window) {
 
                 _.each(keys, function (key) {
                     var time = new Date(parseInt(key)*1000);
-                    streams["events"].values.push({
+                    streams["nevents"].values.push({
                         'x': time,
                         'y': parseInt(data[key]["nevents"]),
                         '_other': data[key]

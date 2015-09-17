@@ -286,14 +286,20 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
             }
         });
 
-        factory.force_replay();
-    };
+        if (factory._force_replay_t === undefined) {
+            factory._force_replay_t = $window.setTimeout(function() {
+                // this is async/on timer so that multiple disconnects
+                // won't cascade into multiple replays
+                factory._force_replay_t = undefined;
 
-    // used after connection setup to reset listeners
-    factory.force_replay = function () {
-        _.each(factory._sync_header_handlers, function (handler) {
-            factory.replay_headers(handler);
-        });
+                // call callbacks to reset the state
+                _.each(factory._sync_header_handlers, function (handler) {
+                    factory.replay_headers(handler);
+                });
+
+                $rootScope.$apply();
+            }, 15);
+        };
     };
 
     factory.send_message = function (uri, msg) {
@@ -952,8 +958,6 @@ mod.factory('DataUtils', [function () {
 
     me.LUMI = 23.310893056;
     me.process_stream_data = function (data, limit_lumi, old_graph_data, do_interpolate) {
-        var ret = {};
-
         if ((!data) || (!data.extra) || (!data.extra.streams)) {
             // we have no data available
             // so just render "no_data"
@@ -999,8 +1003,10 @@ mod.factory('DataUtils', [function () {
                             'mtime': -1,
                             'ctime': -1,
 
-                            'start_offset': -1,
-                            'delay': 0,
+                            'start_offset_mtime': 0,
+                            'start_offset_ctime': 0,
+                            'delay_mtime': 0,
+                            'delay_ctime': 0,
 
                             'evt_accepted':  0,
                             'evt_processed': 0,
@@ -1122,8 +1128,10 @@ mod.factory('DataUtils', [function () {
             + "-<br />"
             + "File m-time: <strong>" + me.format_timestamp(p.mtime) + "</strong><br />"
             + "File c-time: <strong>" + me.format_timestamp(p.ctime) + "</strong><br />"
-            + "Time offset from the expected first delivery [delivery_start_offset]: <strong>" + p.start_offset  + " (seconds)</strong><br />"
-            + "Delay [delivery_start_offset - (lumi_number - 1)*23.3]: <strong>" + p.delay + " (seconds)</strong><br />"
+            + "Time offset from the expected first delivery [start_offset_mtime]: <strong>" + p.start_offset_mtime.toFixed(2)  + " (seconds)</strong><br />"
+            + "Time offset from the expected first delivery [start_offset_ctime]: <strong>" + p.start_offset_ctime.toFixed(2)  + " (seconds)</strong><br />"
+            + "Delay [start_offset_mtime - (lumi_number - 1)*23.3]: <strong>" + p.delay_mtime.toFixed(2) + " (seconds)</strong><br />"
+            + "Delay [start_offset_ctime - (lumi_number - 1)*23.3]: <strong>" + p.delay_ctime.toFixed(2) + " (seconds)</strong><br />"
             + "-<br />"
             + "Run start (m-time on .runXXXX.global): <strong>" + me.format_timestamp(gs) + "</strong><br />"
             + "Delivery start (run_start + 23.3): <strong>" + me.format_timestamp(gs + me.LUMI) + "</strong><br />"

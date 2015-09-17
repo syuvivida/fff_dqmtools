@@ -14,6 +14,7 @@ span.delay { margin-left: 15px; }
   margin: 5px 0;
 }
 
+pre.log { white-space: pre-wrap; }
 
 a.nowrap { white-space: nowrap; }
 
