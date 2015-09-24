@@ -251,6 +251,14 @@ class SimulatorRun(object):
                     #raise Exception("Files from multiple runs are not (yet) supported for as playback input.")
                     pass
 
+                # remap stream if set
+                stream_orig = stream
+                remap = self.config.get("stream_remap", {})
+                if remap.has_key(stream):
+                    stream = remap[stream]
+                    if not self.streams_found.has_key(stream):
+                        log.info("Stream %s will be converted into stream %s", stream_orig, stream)
+
                 files_found.add(f)
                 stream_dct = self.streams_found.setdefault(stream, {
                     'lumi_files': []
