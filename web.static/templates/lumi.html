@@ -123,6 +123,12 @@
         <a ng-hide="LocParams.p.showAny" ng-click="LocParams.setKey('showAny', true)" class="btn btn-info btn-xs">showMisc</a>
         <a ng-show="LocParams.p.showAny" ng-click="LocParams.setKey('showAny', null)" class="btn btn-warning btn-xs">hideMisc</a>
       </li>
+      <li>
+        <a ng-hide="LumiRunCtrl.stats || LumiRunCtrl.stats_p" ng-click="LumiRunCtrl.make_stats()" class="btn btn-info btn-xs">make stats!</a>
+        <a ng-show="LumiRunCtrl.stats_p" class="btn btn-info btn-xs disabled">in progress</a>
+        <a ng-show="LumiRunCtrl.stats && (! LumiRunCtrl.stats_p)" ng-click="LumiRunCtrl.make_stats()" class="btn btn-info btn-xs">update stats!</a>
+        <a ng-show="LumiRunCtrl.stats && (! LumiRunCtrl.stats_p)" ng-click="LumiRunCtrl.clear_stats()" class="btn btn-warning btn-xs">hide</a>
+      </li>
     </ol>
 
     <div ng-if="LocParams.p.showAny" ng-include="'templates/tableAny.html'"></div>
@@ -167,6 +173,8 @@
       </div>
     </div>
 
+    <div class="well" ng-if="LumiRunCtrl.stats" ng-include="'templates/tableStats.html'" onload="StatsCtrl=LumiRunCtrl"></div>
+
     <ol class="breadcrumb">
       <li>
         <span class="blue">Run <strong>{{ LumiRunCtrl.run }}</strong></span>
@@ -203,6 +211,6 @@
   </ol>
 
   <div>
-    <div ng-if="LocParams.p.showStats" ng-include="'templates/tableStats.html'"></div>
+    <div ng-if="LocParams.p.showStats" ng-include="'templates/tableCluster.html'"></div>
   </div>
 </div>

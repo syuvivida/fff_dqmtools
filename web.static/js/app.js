@@ -49,11 +49,10 @@ dqmApp.controller('NavigationCtrl', [
         return tokens[1] + ":" + tokens[2] + ":" + tokens[3];
     };
 
-    var default_token = "ws:" + $location.host() + ":" + $location.port();
     var get_tokens_from_location = function () {
         var l = LocParams.p.hosts;
         if ((l === null) || (l === undefined))
-            l = default_token;
+            l = "";
 
         if ((l === "") || (l === true))
             return [];
@@ -86,6 +85,9 @@ dqmApp.controller('NavigationCtrl', [
     // fff_cluster uses hostnames
     // these checks if selected hosts are _all_ enabled
     var make_token = function (host) {
+		if (host.indexOf("://") > 0)
+			return uri2token(host);
+
         return "ws:" + host + ":" + 9215;
     };
 
@@ -101,10 +103,13 @@ dqmApp.controller('NavigationCtrl', [
         write_location_from_tokens(tokens);
     };
 
-    me.disable_hosts = function (hosts, port) {
+    me.disable_hosts = function (hosts) {
         var tokens = _.difference(get_tokens_from_location(), _.map(hosts, make_token));
         write_location_from_tokens(tokens);
     };
+
+    me.default_uri = "ws://" + $location.host() + ":" + $location.port() + "/sync";
+    me.default_host = $location.host() + ":" + $location.port();
 
     var update_connections = function () {
         var new_uris = [];
@@ -206,6 +211,20 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
 
         return me.type_id_cache[type];
     };
+
+	me.make_stats = function () {
+        var p = RunStats.get_stats_for_runs([me.run]);
+        p.then(function (stats) {
+            me.stats = stats;
+            me.stats_csv = RunStats.stats_to_csv(stats);
+            me.stats_p = null;
+        });
+        me.stats_p = p;
+	};
+
+	me.clear_stats = function () {
+		me.stats = null;
+	};
 
     $scope.$watch(LocParams.watchFunc('run'), function (run) {
         if ((run === undefined) && (LocParams.p.trackRun === undefined)) {
