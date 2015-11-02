@@ -20,8 +20,6 @@ def log_raw(msg):
     sys.stderr.write(msg)
     sys.stderr.flush()
 
-Ref = namedtuple('Ref', ['hash', 'type', 'object'])
-PullRequest = namedtuple('PullRequest', ['id', 'merge', 'head'])
 MergeRequest = namedtuple('MergeRequest', ['id', 'type', 'label', 'arg'])
 ScramProject = namedtuple('ScramProject', ['project', 'title', 'tag', 'arch', 'path', 'mtime'])
 Commit = namedtuple('Commit', ['hash', 'title'])
@@ -34,18 +32,16 @@ def shell_cmd(cmd, callback=None, guard=False, **kwargs):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **kwargs)
 
     for line in p.stdout:
-        line = line.strip()
-
         r = False
         if callback:
             r = callback(line)
 
         if r is False or r is None:
-            log.info("o: %s", line)
+            log.info("o: %s", line.rstrip())
         elif r is True:
             pass
         else:
-            log.info("o: %s", r)
+            log.info("%s", r)
 
     ret = p.wait()
 
@@ -67,16 +63,13 @@ def check_if_hash(x):
     except:
         return False
 
-class UserCache(object):
+class ScramCache(object):
     """ Manager global git/scram information,
         as well as configuration parameters.
     """
 
     def __init__(self):
-        self.git_references = []
-        self.git_pr_dict = {}
         self.scram_projects = []
-
         self.scan_time = None 
 
     def save(self):
@@ -93,82 +86,25 @@ class UserCache(object):
             fp = os.path.expanduser(CacheFile)
             with open(fp, "r") as f:
                 o = pickle.load(f)
-                obj.git_references = o.git_references
-                obj.git_pr_dict = o.git_pr_dict
                 obj.scram_projects = o.scram_projects
                 obj.scan_time = o.scan_time
 
         except:
             log.warning("Failed to open user cache.", exc_info=True)
         
-        log.info("Loaded %d tags and %d pull requests", len(obj.git_references), len(obj.git_pr_dict))
         log.info("Loaded %d scram releases", len(obj.scram_projects))
-
         return obj
 
-    def update(self, config):
-        self.update_git_stuff(config)
-        self.update_scram_stuff(config)
-
+    def update(self):
+        self.update_scram_stuff()
         self.scan_time = time.time()
 
-
-    def update_git_stuff(self, config):
-        refs = []
-        pr_dict = {}
-
-        def parse_ref(line):
-            s = line.split()
-            if len(s) < 2: return False
-
-            hsh = s[0]
-            obj = s[1]
-
-            if not check_if_hash(hsh): return False
-
-            # not interested in the head
-            if obj == "HEAD": return True
-
-            s = obj.split("/")
-            if len(s) < 3: return False
-
-            if s[1] == "tags":
-                refs.append(Ref(hash=hsh, type="tag", object=obj))
-            elif s[1] == "heads":
-                refs.append(Ref(hash=hsh, type="head", object=obj))
-            elif s[1] == "signatures":
-                pass
-            elif s[1] == "pull":
-                i = int(s[2])
-                pr = pr_dict.get(i, PullRequest(id=i,merge=None,head=None))
-
-                if s[3] == "head":
-                    pr = pr._replace(head=hsh)
-                elif s[3] == "merge":
-                    pr = pr._replace(merge=hsh)
-                else:
-                    return False
-
-                pr_dict[i] = pr
-            else:
-                return False
-
-            return True
-
-        repo = config.get_key('git_repository')
-        log.info("Updating git info at: %s", repo)
-        shell_cmd(["git", "ls-remote", repo], callback=parse_ref)
-
-        log.info("Found %d tags and %d pull requests", len(refs), len(pr_dict))
-        self.git_references = refs
-        self.git_pr_dict = pr_dict
-        
-    def update_scram_stuff(self, config):
+    def update_scram_stuff(self):
         arch_re = re.compile(r"slc\d_amd64_gcc\d\d\d")
 
         projects = []
         def parse_scram(line):
-            s = line.split()
+            s = line.strip().split()
             if len(s) != 3: return False
 
             project, tag, path = s
@@ -247,7 +183,7 @@ def get_list_of_pr(string):
             if p.startswith("+"):
                 t = "cherry-pick"
                 
-            m = MergeRequest(i, t, label="+%d" % i, arg=p)
+            m = MergeRequest(i, t, label="%d" % i, arg=p)
             pull_requests.append(m)
 
     return pull_requests
@@ -265,29 +201,42 @@ def parse_commits(diff):
     shell_cmd(["git", "log", "--pretty=oneline", diff], callback=parse_commit)
     return commits
 
+def parse_rev(key):
+    hashes = []
+    def parse_commit(line):
+        line = line.strip()
+        if line and check_if_hash(line):
+            hashes.append(line)
+            return True
+        return False
+        
+    shell_cmd(["git", "rev-parse", key], callback=parse_commit)
+    return hashes 
 
-def get_commits(uc, mr):
-    pr = uc.git_pr_dict[mr.id]
-    return parse_commits("HEAD..%s" % pr.head), 'HEAD', pr.head
+def get_commits(mr):
+    pr_head = 'refs/gh-remotes/pull/%d/head' % mr.id
+    return parse_commits("HEAD..%s" % pr_head), 'HEAD', pr_head
 
-def get_commits_vs_base(uc, mr):
-    pr = uc.git_pr_dict[mr.id]
+def get_commits_vs_base(mr):
+    pr_head = 'refs/gh-remotes/pull/%d/head' % mr.id
+    pr_head_rev = parse_rev(pr_head)[0]
+    pr_merge = 'refs/gh-remotes/pull/%d/merge' % mr.id
 
     parents = []
     def parse_commit(line):
         x = line.strip().split()
         if x: parents[:] = x 
         return True
-    shell_cmd(["git", "show", "--pretty=%P", "%s" % pr.merge], callback=parse_commit)
+    shell_cmd(["git", "show", "--pretty=%P", "%s" % pr_merge], callback=parse_commit)
 
     parents = set(parents)
-    parents.remove(pr.head)
+    parents.remove(pr_head_rev)
 
     if len(parents) != 1:
         raise Exception("Too many parents.")
 
     parent = parents.pop()
-    return parse_commits("%s..%s" % (parent, pr.head)), parent, pr.head
+    return parse_commits("%s..%s" % (parent, pr_head)), parent, pr_head
 
 def compare_commit_lists(list1, list2):
     list1 = set(list1)
@@ -302,7 +251,7 @@ def compare_commit_lists(list1, list2):
 
     return (len(d1) + len(d2)) == 0
 
-def apply_actual_pr(uc, mr, args):
+def apply_actual_pr(mr, args):
     # fetch the pr refs
     shell_cmd(["git", "fetch", "official-cmssw", "refs/pull/%s/*:refs/gh-remotes/pull/%s/*" % (mr.id, mr.id, )], guard=True)
 
@@ -310,8 +259,10 @@ def apply_actual_pr(uc, mr, args):
     # basically, this checks if commits which would be applied during merging are 
     # the same as the ones seen in github
     log.info("Merging: %s", mr)
-    c1 = get_commits(uc, mr)
-    c2 = get_commits_vs_base(uc, mr)
+    log.info("Checking difference (vs head)")
+    c1 = get_commits(mr)
+    log.info("Checking difference (vs parent)")
+    c2 = get_commits_vs_base(mr)
     r = compare_commit_lists(c1[0], c2[0])
 
     if mr.type == "merge-topic":
@@ -326,7 +277,7 @@ def apply_actual_pr(uc, mr, args):
 
     log.info("Merge successful: %s", mr)
 
-def apply_pr(uc, args):
+def apply_pr(args):
     # some verification checks:
     list_os_mr = get_list_of_pr(args.pull_requests)
     if len(list_os_mr) != 1:
@@ -340,10 +291,12 @@ def apply_pr(uc, args):
 
     base_path = os.environ["CMSSW_BASE"]
     base_src_path = os.path.join(base_path, "src")
-    common_prefix = os.path.commonprefix([os.getcwd(), base_src_path])
 
-    if common_prefix != base_src_path:
+    common_prefix = os.path.commonprefix([os.getcwd(), base_path])
+    if common_prefix != base_path:
         raise Exception("You have to be inside project's src directory.")
+
+    os.chdir(base_src_path)
 
     # check for staged changes, abort if any (for safety)
     failed = []
@@ -359,39 +312,43 @@ def apply_pr(uc, args):
     if failed:
         raise Exception("Staged, but not commited change was found, aborting.")
 
+    try:
+        if mr.type in ("merge-topic", "cherry-pick"):
+            apply_actual_pr(mr, args)
+            pass
+    except:
+        log.error("Merge of %s has failed", mr, exc_info=True)
+        sys.exit(1)
+
+def make_src_backup(base_path, label):
+    # prepare backup of src
+    base_src_path = os.path.join(base_path, "src")
+
     backup_src_path = None
-    if not args.no_backup:
-        for i in range(1, 1024):
-            b = os.path.join(base_path, "src.pre" + mr.label + ".%d" % i)
-            if not os.path.exists(b):
-                backup_src_path = b
-                break
+    backup_restore_commands = []
+
+    # find the backup directory
+    for i in range(1, 1024):
+        b = os.path.join(base_path, "src." + label + ".%d" % i)
+        if not os.path.exists(b):
+            backup_src_path = b
+            break
 
     if backup_src_path:
         log.info("Making a backup at: %s", backup_src_path)
         r = shell_cmd(["rsync", "-ap", base_src_path + "/", backup_src_path + "/", ], guard=True)
         if r == 0:
-            backup_reverse_cmd = ["rsync", "-ap", "--delete", backup_src_path + "/", base_src_path + "/", ]
-            backup_reverse_cmd2 = ["rm", "-fr", backup_src_path]
+            backup_restore_commands.append(["rsync", "-ap", "--delete", backup_src_path + "/", base_src_path + "/", ])
+            backup_restore_commands.append(["rm", "-fr", backup_src_path])
             log.info("Backup successful: %s", backup_src_path)
-            log.info("Do this to restore: \"%s\"", " ".join(backup_reverse_cmd))
 
-    try:
-        if mr.type in ("merge-topic", "cherry-pick"):
-            apply_actual_pr(uc, mr, args)
-            pass
-    except:
-        log.error("Merge of %s has failed", mr, exc_info=True)
+            log.info("Do this to restore:")
+            for cmds in backup_restore_commands:
+                log.info("  \"%s\"", " ".join(cmds))
 
-        if backup_src_path and not args.no_restore:
-            log.info("Restoring old directory")
-            shell_cmd(backup_reverse_cmd, guard=True)
-            shell_cmd(backup_reverse_cmd2, guard=True)
-            log.info("Done, it's probably a good idea to do \"cd; cd -\"")
+    return backup_src_path, backup_restore_commands
 
-        raise
-
-def apply_multiple_pr(uc, args, cmd_prefix=[], cwd=None):
+def apply_multiple_pr(base_path, args, cmd_prefix=[]):
     """ wrapper to apply multiple pr, it will launch subprocesses for each pr """
 
     list_os_mr = get_list_of_pr(args.pull_requests)
@@ -400,30 +357,50 @@ def apply_multiple_pr(uc, args, cmd_prefix=[], cwd=None):
     script = os.path.abspath(sys.argv[0])
 
     for mr in list_os_mr:
+        # prepare args and env
         argv = cmd_prefix + [sys.executable, script, ]
-        if args.no_backup: argv.append("--no-backup")
-        if args.no_restore: argv.append("--no-restore")
         argv += ["apply-pr", "-p", mr.arg]
-
         env = os.environ.copy()
         env["CMSSW_MANAGER_LOG_PREFIX"] = str(log_prefix + 1)
 
-        r = shell_cmd(argv, env=env, cwd=cwd, stderr=subprocess.STDOUT)
-        status[mr] = r
+        # prepare backup of src
+        base_src_path = os.path.join(base_path, "src")
+        backup_label = "backup_pre" + str(mr.label)
+        backup_src_path, backup_restore_commands = make_src_backup(base_path, backup_label)
 
-        if r != 0 and args.no_restore:
-            return
+        # create log file
+        merge_log_file = os.path.join(base_path, "merge." + str(mr.label) + ".log")
+        log.info("Logging into: %s", merge_log_file)
+        merge_log_f = open(merge_log_file, "w")
+
+        def merge_log(line):
+            merge_log_f.write(line)
+            return line.rstrip()
+
+        r = shell_cmd(argv, env=env, cwd=base_src_path, stderr=subprocess.STDOUT, callback=merge_log)
+        status[mr] = (r, merge_log_file)
+        merge_log_f.close()
+
+        # restore backup on failure
+        if (r != 0) and (not args.no_restore) and backup_src_path:
+            log.info("Restoring old directory")
+            for cmd in backup_restore_commands:
+                shell_cmd(cmd, guard=True)
+            log.info("Done, it's probably a good idea to do \"cd; cd -\"")
+        else:
+            break
 
     log.warning("Applied merge requests (%d):", len(list_os_mr))
     for mr in list_os_mr:
-        if status[mr] == 0:
+        if status[mr][0] == 0:
             log.info("%s: success", mr)
         else:
             log.info("%s: failed", mr)
+            log.info("See: %s", status[mr][1])
 
-def make_release(uc, args):
+def make_release(sc, args):
     # find the release to use
-    target = select_target(uc.scram_projects, args.tag, args.arch, args.tag_blacklist)
+    target = select_target(sc.scram_projects, args.tag, args.arch, args.tag_blacklist)
     log.info("Selected release: %s %s", target.arch, target.tag)
 
     # generate the directory_name
@@ -433,7 +410,7 @@ def make_release(uc, args):
 
     pull_requests = get_list_of_pr(args.pull_requests)
     for m in pull_requests:
-        components.append(m.label)
+        components.append("+" + m.label)
 
     name = "".join(components)
     log.info("Generated directory name: %s", name)
@@ -469,7 +446,7 @@ def make_release(uc, args):
     if args.pull_requests:
         log.info("Applying pr string: %s", args.pull_requests)
         cmd_prefix = ["../cmswrapper.sh"] 
-        apply_multiple_pr(uc, args, cmd_prefix=cmd_prefix, cwd=base_src_path)
+        apply_multiple_pr(base_path, args, cmd_prefix=cmd_prefix)
 
     log.warning("Made release area: %s", name)
 
@@ -492,7 +469,6 @@ class UserConfig(object):
         except:
             log.warning("Failed to open user config.", exc_info=True)
 
-
     def get_config(self, key, default=None):
         return self.store.get(key, default)
 
@@ -503,14 +479,12 @@ class UserConfig(object):
         log.info("Setting key %s to: %s", key, value)
         self.store[key] = value
 
-    def get_key(self, key):
-        r = self.store.get(key, None)
-        if r is None:
-            raise Exception("Key %s not found in the config." % key)
-        return r
 
+def parse_args():
+    user_config = UserConfig()
+    if "--no-cache" not in sys.argv:
+        user_config.load()
 
-def parse_args(user_config):
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -520,7 +494,7 @@ def parse_args(user_config):
     group = parser.add_argument_group('global_info', 'Global information')
     group.add_argument("-g", "--repo", type=str, default=user_config.get_config("git_repository", "git@github.com:cms-sw/cmssw.git"), help="Main git repository.")
     group.add_argument("-u", action="store_true", help="Force update/rescan of github and scram, for new releases and stuff.")
-    group.add_argument("--no-save", action="store_true", help="Don't save config/github/scram cache.")
+    group.add_argument("--no-cache", action="store_true", help="Don't cache anything.")
 
     group = parser.add_argument_group('release_info', 'Release information')
     group.add_argument("-t", "--tag", type=str, default="", help="Main release tag to use as a base (this is scram tag, not git's.")
@@ -536,43 +510,44 @@ def parse_args(user_config):
     args = parser.parse_args()
     user_config.update_config("git_repository", args.repo)
 
+    # update config_file 
+    if not args.no_cache:
+        user_config.save()
+
     return args
 
 if __name__ == "__main__":
-    user_config = UserConfig()
-    user_config.load()
-
-    args = parse_args(user_config)
-
-    # update config_file 
-    if not args.no_save:
-        user_config.save()
+    args = parse_args()
 
     # init or load git/scram cache
-    if args.u:
-        user_cache = UserCache()
+    if args.u or args.no_cache:
+        scram_cache = ScramCache()
         needs_update = True
     else:
-        user_cache = UserCache.load()
-        t = time.time() - (user_cache.scan_time or 0)
+        scram_cache = ScramCache.load()
+        t = time.time() - (scram_cache.scan_time or 0)
         needs_update = (t < 0) or (t >= 60*60)
 
     if needs_update:
-        user_cache.update(user_config)
-        if not args.no_save:
-            user_cache.save()
+        scram_cache.update()
+        if not args.no_cache:
+            scram_cache.save()
 
     command = args.command
     if command == "update":
         pass
     elif command == "select-release":
-        target = select_target(user_cache.scram_projects, args.tag, args.arch, args.tag_blacklist)
+        target = select_target(scram_cache.scram_projects, args.tag, args.arch, args.tag_blacklist)
         print target
     elif command == "make-release":
-        make_release(user_cache, args)
+        make_release(scram_cache, args)
     elif command == "apply-pr":
-        apply_pr(user_cache, args)
+        apply_pr(args)
     elif command == "apply-multiple-pr":
-        apply_multiple_pr(user_cache, args)
+        if not os.environ.has_key("CMSSW_BASE"):
+            raise Exception("Please do cmsenv before calling me.")
+
+        base_path = os.environ["CMSSW_BASE"]
+        apply_multiple_pr(base_path, args)
     else:
         log.error("Unknown command: %s", command)
