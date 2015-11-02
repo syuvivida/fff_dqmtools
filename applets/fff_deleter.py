@@ -25,7 +25,7 @@ def parse_file_name(rl):
     sort_key = (int(d["run"]), int(d["runf"]), int(d["ls"]), d["leftover"])
     return sort_key
 
-def collect(top, parse_func):
+def collect(top, parse_func, log):
     # entry format (sort_key, path, size)
     collected = []
 
@@ -45,13 +45,14 @@ def collect(top, parse_func):
 
             sort_key = parse_func(rl)
             if sort_key:
-                stat = os.stat(fp)
-                fsize = stat.st_size
-                ftime = stat.st_mtime
-                if fsize == 0:
-                    continue
-
-                collected.append((sort_key, fp, fsize, ftime, ))
+                try:
+                    stat = os.stat(fp)
+                    fsize = stat.st_size
+                    ftime = stat.st_mtime
+                    if fsize != 0:
+                        collected.append((sort_key, fp, fsize, ftime, ))
+                except:
+                    log.error("Failed to stat file: %s", fp, exc_info=True)
 
     # for now just use simple sort
     collected.sort(key=lambda x: x[0])
@@ -86,7 +87,10 @@ class FileDeleter(object):
             self.log.warning("Renaming file: %s -> %s", f,
                 os.path.relpath(fn, os.path.dirname(f)))
 
+            #try:
             os.rename(f, fn)
+            #except:
+            #    self.log.warning("Failed to rename file: %s", f, exc_info=True)
 
         return fn
 
@@ -98,7 +102,11 @@ class FileDeleter(object):
             self.log.warning("Truncating file (fake): %s", f)
         else:
             self.log.warning("Truncating file: %s", f)
+
+            #try:
             open(f, "w").close()
+            #except:
+            #    self.log.warning("Failed to truncate file: %s", f, exc_info=True)
 
         return f
 
@@ -135,7 +143,7 @@ class FileDeleter(object):
         # do the action until we reach the target sizd
         self.log.info("Started file collection at %s", self.top)
         start = time.time()
-        collected = collect(self.top, parse_file_name)
+        collected = collect(self.top, parse_file_name, self.log)
         self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
         updated = []
