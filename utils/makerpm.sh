@@ -62,6 +62,7 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 /opt/fff_dqmtools/lib/*.py
 /opt/fff_dqmtools/lib/*.egg
 /opt/fff_dqmtools/applets/*.py
+/opt/fff_dqmtools/utils/*.py
 
 /opt/fff_dqmtools/misc
 /opt/fff_dqmtools/utils

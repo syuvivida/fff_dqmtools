@@ -27,21 +27,24 @@ Commit = namedtuple('Commit', ['hash', 'title'])
 CacheFile = "~/.cmssw_deploy.pkl"
 UserConfigFile = "~/.cmssw_deploy.jsn"
 
-def shell_cmd(cmd, callback=None, guard=False, **kwargs):
-    log.info("Exec: %s", repr(cmd))
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **kwargs)
+def shell_cmd(cmd, callback=None, guard=False, merge_stderr=True, **kwargs):
+    log.info("Exec: %s", " ".join(cmd))
+
+    args = dict(kwargs)
+    if merge_stderr:
+        args["stderr"] = subprocess.STDOUT
+
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **args)
 
     for line in p.stdout:
         r = False
         if callback:
             r = callback(line)
 
-        if r is False or r is None:
-            log.info("o: %s", line.rstrip())
-        elif r is True:
+        if r is True:
             pass
         else:
-            log.info("%s", r)
+            log.info("o: %s", line.rstrip())
 
     ret = p.wait()
 
@@ -70,7 +73,7 @@ class ScramCache(object):
 
     def __init__(self):
         self.scram_projects = []
-        self.scan_time = None 
+        self.scan_time = None
 
     def save(self):
         fp = os.path.expanduser(CacheFile)
@@ -91,7 +94,7 @@ class ScramCache(object):
 
         except:
             log.warning("Failed to open user cache.", exc_info=True)
-        
+
         log.info("Loaded %d scram releases", len(obj.scram_projects))
         return obj
 
@@ -110,7 +113,7 @@ class ScramCache(object):
             project, tag, path = s
             arch = None
 
-            m = arch_re.search(path) 
+            m = arch_re.search(path)
             if m: arch = m.group(0)
 
             try:
@@ -182,7 +185,7 @@ def get_list_of_pr(string):
             i, t = int(p), "merge-topic"
             if p.startswith("+"):
                 t = "cherry-pick"
-                
+
             m = MergeRequest(i, t, label="%d" % i, arg=p)
             pull_requests.append(m)
 
@@ -209,9 +212,9 @@ def parse_rev(key):
             hashes.append(line)
             return True
         return False
-        
+
     shell_cmd(["git", "rev-parse", key], callback=parse_commit)
-    return hashes 
+    return hashes
 
 def get_commits(mr):
     pr_head = 'refs/gh-remotes/pull/%d/head' % mr.id
@@ -225,7 +228,7 @@ def get_commits_vs_base(mr):
     parents = []
     def parse_commit(line):
         x = line.strip().split()
-        if x: parents[:] = x 
+        if x: parents[:] = x
         return True
     shell_cmd(["git", "show", "--pretty=%P", "%s" % pr_merge], callback=parse_commit)
 
@@ -256,14 +259,15 @@ def apply_actual_pr(mr, args):
     shell_cmd(["git", "fetch", "official-cmssw", "refs/pull/%s/*:refs/gh-remotes/pull/%s/*" % (mr.id, mr.id, )], guard=True)
 
     # check if this pr "compatible" with the branch we are on
-    # basically, this checks if commits which would be applied during merging are 
+    # basically, this checks if commits which would be applied during merging are
     # the same as the ones seen in github
     log.info("Merging: %s", mr)
     log.info("Checking difference (vs head)")
     c1 = get_commits(mr)
-    log.info("Checking difference (vs parent)")
-    c2 = get_commits_vs_base(mr)
-    r = compare_commit_lists(c1[0], c2[0])
+    # @TODO this is temporary disabled - github does not provide a way to consistently get parent id
+    #log.info("Checking difference (vs parent)")
+    #c2 = get_commits_vs_base(mr)
+    r = compare_commit_lists([], c1[0])
 
     if mr.type == "merge-topic":
         # do the sparse checkout magic
@@ -271,9 +275,13 @@ def apply_actual_pr(mr, args):
         shell_cmd(["git", "read-tree", "-mu", "HEAD"], guard=True)
 
         log.info("'%s' is a merge-topic, will be done via git cms-merge-topic." % mr.id)
-        shell_cmd(["git", "cms-merge-topic", str(mr.id)], guard=True)
+        shell_cmd(["git", "cms-merge-topic", "--ssh", str(mr.id)], guard=True)
     elif mr.type == "cherry-pick":
        raise Exception("Not yet implemented")
+
+    if not args.no_build:
+        shell_cmd(["git", "cms-checkdeps", "-a"], guard=True)
+        shell_cmd(["scram", "b", "-j16"], guard=True)
 
     log.info("Merge successful: %s", mr)
 
@@ -326,6 +334,7 @@ def make_src_backup(base_path, label):
 
     backup_src_path = None
     backup_restore_commands = []
+    backup_erase_commands = []
 
     # find the backup directory
     for i in range(1, 1024):
@@ -339,14 +348,14 @@ def make_src_backup(base_path, label):
         r = shell_cmd(["rsync", "-ap", base_src_path + "/", backup_src_path + "/", ], guard=True)
         if r == 0:
             backup_restore_commands.append(["rsync", "-ap", "--delete", backup_src_path + "/", base_src_path + "/", ])
-            backup_restore_commands.append(["rm", "-fr", backup_src_path])
+            backup_erase_commands.append(["rm", "-fr", backup_src_path])
             log.info("Backup successful: %s", backup_src_path)
 
             log.info("Do this to restore:")
-            for cmds in backup_restore_commands:
+            for cmds in backup_restore_commands + backup_erase_commands:
                 log.info("  \"%s\"", " ".join(cmds))
 
-    return backup_src_path, backup_restore_commands
+    return backup_src_path, backup_restore_commands, backup_erase_commands
 
 def apply_multiple_pr(base_path, args, cmd_prefix=[]):
     """ wrapper to apply multiple pr, it will launch subprocesses for each pr """
@@ -359,14 +368,17 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
     for mr in list_os_mr:
         # prepare args and env
         argv = cmd_prefix + [sys.executable, script, ]
+        if args.no_build:
+            argv += ["--no-build"]
         argv += ["apply-pr", "-p", mr.arg]
+
         env = os.environ.copy()
         env["CMSSW_MANAGER_LOG_PREFIX"] = str(log_prefix + 1)
 
         # prepare backup of src
         base_src_path = os.path.join(base_path, "src")
         backup_label = "backup_pre" + str(mr.label)
-        backup_src_path, backup_restore_commands = make_src_backup(base_path, backup_label)
+        backup_src_path, backup_restore_cmds, backup_erase_cmds = make_src_backup(base_path, backup_label)
 
         # create log file
         merge_log_file = os.path.join(base_path, "merge." + str(mr.label) + ".log")
@@ -375,23 +387,33 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
 
         def merge_log(line):
             merge_log_f.write(line)
-            return line.rstrip()
+            log_raw(line)
+            return True
 
-        r = shell_cmd(argv, env=env, cwd=base_src_path, stderr=subprocess.STDOUT, callback=merge_log)
+        r = shell_cmd(argv, env=env, cwd=base_src_path, merge_stderr=True, callback=merge_log)
         status[mr] = (r, merge_log_file)
         merge_log_f.close()
 
         # restore backup on failure
-        if (r != 0) and (not args.no_restore) and backup_src_path:
-            log.info("Restoring old directory")
-            for cmd in backup_restore_commands:
-                shell_cmd(cmd, guard=True)
-            log.info("Done, it's probably a good idea to do \"cd; cd -\"")
-        else:
-            break
+        if r == 0:
+            # pr successful
+            if (not args.no_restore) and backup_src_path:
+                log.info("Erasing backup directory: %s", backup_src_path)
+                for cmd in backup_erase_cmds:
+                    shell_cmd(cmd, guard=True)
 
-    log.warning("Applied merge requests (%d):", len(list_os_mr))
-    for mr in list_os_mr:
+        else:
+            # pr failed
+            if (not args.no_restore) and backup_src_path:
+                log.info("Restoring old directory")
+                for cmd in backup_restore_cmds + backup_erase_cmds:
+                    shell_cmd(cmd, guard=True)
+                log.info("Done, it's probably a good idea to do \"cd; cd -\"")
+            else:
+                break
+
+    log.warning("Applied merge requests (%d):", len(status))
+    for mr in status.keys():
         if status[mr][0] == 0:
             log.info("%s: success", mr)
         else:
@@ -399,6 +421,11 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
             log.info("See: %s", status[mr][1])
 
 def make_release(sc, args):
+    # go to a specified directory, if specified
+    #if args.path != "./":
+    #    log.info("Switching to directory: %s", args.path)
+    #    os.chdir(args.path)
+
     # find the release to use
     target = select_target(sc.scram_projects, args.tag, args.arch, args.tag_blacklist)
     log.info("Selected release: %s %s", target.arch, target.tag)
@@ -410,13 +437,16 @@ def make_release(sc, args):
 
     pull_requests = get_list_of_pr(args.pull_requests)
     for m in pull_requests:
-        components.append("+" + m.label)
+        components.append("_" + m.label)
 
     name = "".join(components)
-    log.info("Generated directory name: %s", name)
+    base_cwd = args.path
+    base_path = os.path.join(base_cwd, name)
+
+    log.info("Generated directory name: %s", base_path)
 
     # check if directory exists
-    if os.path.exists(name):
+    if os.path.exists(base_path):
         log.error("Directory path (%s) already exists, delete it.", name)
         sys.exit(1)
 
@@ -425,28 +455,50 @@ def make_release(sc, args):
         log.info("Setting SCRAM_ARCH=%s", target.arch)
         os.environ["SCRAM_ARCH"] = target.arch
 
-    shell_cmd(["scram", "p", "-n", name, target.tag])
+    if args.use_tmp:
+        base_final_cwd = base_cwd
+        base_final_path = base_path
+
+        import tempfile
+        tmp_dir = tempfile.mkdtemp(prefix="cmssw_scram_deploy")
+        assert tmp_dir
+        assert 'scram' in tmp_dir
+
+        base_cwd = tmp_dir
+        base_path = os.path.join(base_cwd, name)
+        tmp_to_delete = [tmp_dir]
+
+        log.info("Doing everything inside %s directory.", tmp_dir)
+
+    shell_cmd(["scram", "p", "-n", name, target.tag], cwd=base_cwd, guard=True)
 
     # create a special "wrapper" file, to help us execute commands
     # inside the cmssw environment
-    with open(os.path.join(name, "cmswrapper.sh"), "w") as f:
+    with open(os.path.join(base_path, "cmswrapper.sh"), "w") as f:
         os.fchmod(f.fileno(), 0755)
         f.write("#!/bin/sh\n")
         f.write("")
         f.write("eval `scramv1 runtime -sh`\n")
         f.write("")
         f.write("exec \"$@\"\n")
-        
+
     # do git init
     log.info("Doing git init (this takes time)")
-    base_src_path = os.path.join(name, "src")
-    shell_cmd(["./cmswrapper.sh", "git-cms-init", "--ssh"], cwd=name)
+    base_src_path = os.path.join(base_path, "src")
+    shell_cmd(["./cmswrapper.sh", "git-cms-init", "--ssh"], cwd=base_path, guard=True)
     shell_cmd(["../cmswrapper.sh", "git", "tag", "cmssw_manager_base"], cwd=base_src_path)
 
     if args.pull_requests:
         log.info("Applying pr string: %s", args.pull_requests)
-        cmd_prefix = ["../cmswrapper.sh"] 
+        cmd_prefix = ["../cmswrapper.sh"]
         apply_multiple_pr(base_path, args, cmd_prefix=cmd_prefix)
+
+    if args.use_tmp:
+        shell_cmd(["rsync", "-ap", base_path + "/", base_final_path + "/"], guard=True)
+        shell_cmd(["scram", "b", "ProjectRename"], guard=True, cwd=base_final_path)
+
+        for tmp in tmp_to_delete:
+            shell_cmd(["rm", "-fr", tmp], guard=True)
 
     log.warning("Made release area: %s", name)
 
@@ -492,7 +544,8 @@ def parse_args():
     parser.add_argument("command", help="What to do: update,make-release,select-release,apply-pr,apply-multiple-pr,build")
 
     group = parser.add_argument_group('global_info', 'Global information')
-    group.add_argument("-g", "--repo", type=str, default=user_config.get_config("git_repository", "git@github.com:cms-sw/cmssw.git"), help="Main git repository.")
+    group.add_argument("--repo", type=str, default=user_config.get_config("git_repository", "git@github.com:cms-sw/cmssw.git"), help="Main git repository.")
+    group.add_argument("--path", type=str, default=user_config.get_config("path", "./"), help="Default path.")
     group.add_argument("-u", action="store_true", help="Force update/rescan of github and scram, for new releases and stuff.")
     group.add_argument("--no-cache", action="store_true", help="Don't cache anything.")
 
@@ -502,15 +555,18 @@ def parse_args():
     group.add_argument("-a", "--arch", type=str, default="", help="Scram arch, don't set for auto-select.")
     group.add_argument("-p", "--pull-requests", type=str, default="", help="Comma-separate list of pull requests to apply. Use \"+number\" to merge using cherry pick instead of merge-topic.")
     group.add_argument("-l", "--label", type=str, default="", help="Label to prefix the directory with.")
+    group.add_argument("--use-tmp", action="store_true", help="Do scram stuff in tmp (work around against jira #8215")
 
     group = parser.add_argument_group('merge_info', 'Merging options')
     group.add_argument("--no-backup", action="store_true", help="Don't make backup of the src dir before merging.")
     group.add_argument("--no-restore", action="store_true", help="Restore from backup in case of a merge failure.")
+    group.add_argument("--no-build", action="store_true", help="Don't call scram b.")
 
     args = parser.parse_args()
     user_config.update_config("git_repository", args.repo)
+    user_config.update_config("path", args.path)
 
-    # update config_file 
+    # update config_file
     if not args.no_cache:
         user_config.save()
 
@@ -541,6 +597,8 @@ if __name__ == "__main__":
         print target
     elif command == "make-release":
         make_release(scram_cache, args)
+    #elif command == "prepare-online-release":
+    #    make_release(scram_cache, args)
     elif command == "apply-pr":
         apply_pr(args)
     elif command == "apply-multiple-pr":
