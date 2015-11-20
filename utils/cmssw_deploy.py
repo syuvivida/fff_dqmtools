@@ -271,8 +271,8 @@ def apply_actual_pr(mr, args):
 
     if mr.type == "merge-topic":
         # do the sparse checkout magic
-        shell_cmd(["git", "cms-sparse-checkout", c1[1], c1[2]], guard=True)
-        shell_cmd(["git", "read-tree", "-mu", "HEAD"], guard=True)
+        #shell_cmd(["git", "cms-sparse-checkout", c1[1], c1[2]], guard=True)
+        #shell_cmd(["git", "read-tree", "-mu", "HEAD"], guard=True)
 
         log.info("'%s' is a merge-topic, will be done via git cms-merge-topic." % mr.id)
         shell_cmd(["git", "cms-merge-topic", "--ssh", str(mr.id)], guard=True)
@@ -478,6 +478,7 @@ def make_release(sc, args):
         os.fchmod(f.fileno(), 0755)
         f.write("#!/bin/sh\n")
         f.write("")
+        f.write("# cmdline: %s\n" % " ".join(sys.argv))
         f.write("eval `scramv1 runtime -sh`\n")
         f.write("")
         f.write("exec \"$@\"\n")
