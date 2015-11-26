@@ -279,6 +279,48 @@ mod.directive('dqmLog', function ($window, $interval) {
     };
 });
 
+mod.directive('dqmLumiState', function ($window, $interval) {
+    return {
+        restrict: 'E',
+        scope: { 'state': '=', 'lumi': '=' },
+        link: function (scope, elm, attrs) {
+            var error_dct = {
+                "open: file iterator": 0,
+                "close: eof": 0,
+                "close: forced end-of-run": 0,
+                "close: skipping to another file": 0,
+                "closed: ok": 0,
+                "skipped: fast-forward to the latest lumi": 0,
+
+                "": 0 // ignore these, i don't know what causes them
+            };
+
+            scope.$watch('state', function (arr) {
+                scope.cls = "label-success";
+                scope.title = "";
+
+                if (!arr) return;
+
+                var analyzeEntry = function (value, key) {
+                    var n = error_dct[value];
+                    if (n === 0) {
+                        return false;
+                    }
+
+                    scope.title = "[" + key + "]" + ": " + value + " (check the log)";
+                    scope.cls = "label-warning";
+                    return true;
+                };
+
+                _.find(arr, analyzeEntry);
+            });
+        },
+        template: '<span class="label" ng-class="cls" title="{{ title }}">{{ lumi }}</span>'
+    };
+});
+
+
+
 
 
 mod.directive('dqmTimediffField', function ($window, $interval) {

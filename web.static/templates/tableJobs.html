@@ -46,7 +46,8 @@
         </td>
 
         <td class="nowrap actions">
-          {{ doc.cmssw_lumi }}
+          <dqm-lumi-state lumi="doc.cmssw_lumi" state="doc.extra.lumi_seen"></dqm-lumi-state>
+
           <a ng-hide="_show_inline == 'lumi'" ng-click="_show_inline = 'lumi'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
           <a ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
         </td>
