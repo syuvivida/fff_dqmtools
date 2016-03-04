@@ -400,7 +400,7 @@ if __name__ == "__main__":
         "fff_deleter_lookarea_c2f11_19_01", "fff_deleter_minidaq_c2f11_19_01",
 
         "fff_simulator",
-        "analyze_files",
+        "analyze_files", "analyze_files_lookarea_c2f11_19_01",
     ]
 
     opt = {

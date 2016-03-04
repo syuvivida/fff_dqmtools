@@ -19,8 +19,10 @@ import fff_cluster
 
 log = logging.getLogger(__name__)
 
-RunEntry = namedtuple('RunEntry', ["run", "path", "start_time"])
+RunEntry = namedtuple('RunEntry', ["run", "path", "start_time", "start_time_source"])
 FileEntry = namedtuple('FileEntry', ["ls", "stream", "mtime", "ctime", "evt_processed", "evt_accepted", "fsize"])
+
+LUMI = 23.310893056
 
 def find_match(re, iter):
     xm = map(re.match, iter)
@@ -34,22 +36,23 @@ def collect_run_timestamps(path):
     for m in find_match(path_pattern_re,  lst):
         path_dct[int(m.group(1))] = os.path.join(path, m.group(0))
 
-    dct = []
-    pattern_re = re.compile(r"^\.run(\d+)\.global$")
-    for m in find_match(pattern_re, lst):
-        run = int(m.group(1))
-        if not path_dct.has_key(run):
-            # no run folder for it yet
-            continue
+    global_dct = {}
+    global_pattern_re = re.compile(r"^\.run(\d+)\.global$")
 
+    for m in find_match(global_pattern_re, lst):
         f = os.path.join(path, m.group(0))
         stat = os.stat(f)
         ftime = stat.st_mtime
 
-        dct.append(RunEntry(run, path_dct[run], ftime))
+        global_dct[int(m.group(1))] = ftime
 
-    dct.sort()
-    return dct
+    run_list = []
+    for run in path_dct.keys():
+        # runs without global will have 'None'
+        run_list.append(RunEntry(run, path_dct[run], global_dct.get(run, None), "global_file"))
+
+    run_list.sort()
+    return run_list
 
 def analyze_run_entry(e):
     lst = os.listdir(e.path)
@@ -82,7 +85,10 @@ def analyze_run_entry(e):
         files.append(FileEntry(int(d['ls']), stream, mtime, ctime, evt_processed, evt_accepted, fsize))
 
     files.sort()
-    return files
+    if (e.start_time is None) and len(files):
+        e = e._replace(start_time = files[0].mtime - LUMI, start_time_source = "first_lumi")
+
+    return e, files
 
 
 class Analyzer(object):
@@ -97,7 +103,7 @@ class Analyzer(object):
 
         # only last 5 entries
         for entry in timestamps[-backlog:]:
-            files = analyze_run_entry(entry)
+            entry, files = analyze_run_entry(entry)
 
             # group by stream name in order to save space
             # and make a dictionary for json
@@ -133,6 +139,8 @@ class Analyzer(object):
                 "extra": {
                     "streams": grouped,
                     "global_start": entry.start_time,
+                    "global_start_source": entry.start_time_source,
+                    "lumi": LUMI,
                     #"run_timestamps": run_dct,
                 },
                 "pid": os.getpid(),
