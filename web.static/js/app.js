@@ -73,20 +73,23 @@ dqmApp.controller('NavigationCtrl', [
     };
 
     var write_location_from_tokens = function (tokens) {
-        tokens.sort();
-        var loc = _.uniq(tokens).join(",");
         _.each(me.hosts_shortcuts, function (sc_value, sc_key) {
-            loc = loc.replace(sc_value, sc_key);
+            var i = _.intersection(sc_value, tokens);
+            if (i.length == sc_value.length) {
+                tokens = _.difference(tokens, sc_value);
+                tokens.push(sc_key);
+            };
         });
 
+        var loc = _.uniq(tokens).join(",");
         LocParams.setKey("hosts", loc);
     };
 
     // fff_cluster uses hostnames
     // these checks if selected hosts are _all_ enabled
     var make_token = function (host) {
-		if (host.indexOf("://") > 0)
-			return uri2token(host);
+        if (host.indexOf("://") > 0)
+            return uri2token(host);
 
         return "ws:" + host + ":" + 9215;
     };
@@ -212,7 +215,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
         return me.type_id_cache[type];
     };
 
-	me.make_stats = function () {
+    me.make_stats = function () {
         var p = RunStats.get_stats_for_runs([me.run]);
         p.then(function (stats) {
             me.stats = stats;
@@ -220,11 +223,11 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
             me.stats_p = null;
         });
         me.stats_p = p;
-	};
+    };
 
-	me.clear_stats = function () {
-		me.stats = null;
-	};
+    me.clear_stats = function () {
+        me.stats = null;
+    };
 
     $scope.$watch(LocParams.watchFunc('run'), function (run) {
         if ((run === undefined) && (LocParams.p.trackRun === undefined)) {
@@ -244,7 +247,7 @@ dqmApp.controller('LumiRunCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams
     });
 
     $scope.$watch(LocParams.watchFunc('trackRun'),  function (run, old_value) {
-		// reset the run if the button was pressed
+        // reset the run if the button was pressed
         if ((old_value === undefined) && (run === true)) {
             me.run = undefined;
             me.run_ = undefined;

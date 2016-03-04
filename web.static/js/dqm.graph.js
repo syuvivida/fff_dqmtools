@@ -177,7 +177,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window, DataUtils) {
 
     return {
         restrict: 'E',
-        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=", 'metric': '=' },
+        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=", 'metric': '=', 'tag': '=' },
         link: function (scope, elm, attrs) {
             var width = parseInt(scope.width);
             var height = parseInt(scope.height);
@@ -206,7 +206,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window, DataUtils) {
 
             // Axis settings
             chart.xAxis
-                .axisLabel("Lumisection")
+                .axisLabel("Lumisection (source: " + scope.tag + ")")
                 .tickFormat(d3.format('.00f'));
 
             chart.yAxis
@@ -263,7 +263,7 @@ mod.directive('graphDqmEventsLumi', function ($window, DataUtils) {
 
     return {
         restrict: 'E',
-        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=" },
+        scope: { 'data': '=', 'width': '@', 'height': '@', 'showAll': "=", 'tag': '=' },
         link: function (scope, elm, attrs) {
             var width = parseInt(scope.width);
             var height = parseInt(scope.height);
@@ -298,7 +298,7 @@ mod.directive('graphDqmEventsLumi', function ($window, DataUtils) {
 
             // Axis settings
             chart.xAxis
-                .axisLabel("Lumisection")
+                .axisLabel("Lumisection (source: " + scope.tag + ")")
                 //.tickValues(tickValues)
                 .tickFormat(d3.format('.00f'));
 
