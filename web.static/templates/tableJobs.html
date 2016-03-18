@@ -2,7 +2,7 @@
   <table class="table hide-actions" dqm-sorted-table="" key="LocParams.p.sortKey" path="sortPath">
     <thead>
       <tr>
-        <th dqm-sort-header="timestamp" path="timestamp">Timestamp</th>
+        <th dqm-sort-header="timestamp" path="timestamp">Timestamp ({{ (documents | dqm_exitcode_filter:LocParams.p.filterJobs).length }})</th>
         <th dqm-sort-header="hostname">Hostname</th>
         <th dqm-sort-header="pid">Pid</th>
         <th dqm-sort-header="exit_code">State</th>

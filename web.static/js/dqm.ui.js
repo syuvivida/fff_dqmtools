@@ -289,7 +289,8 @@ mod.directive('dqmLumiState', function ($window, $interval) {
                 "close: eof": 0,
                 "close: forced end-of-run": 0,
                 "close: skipping to another file": 0,
-                "closed: ok": 0,
+                "close: not loading": 0,
+                "close: ok": 0,
                 "skipped: fast-forward to the latest lumi": 0,
 
                 "": 0 // ignore these, i don't know what causes them
