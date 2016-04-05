@@ -248,7 +248,7 @@ mod.directive('graphDqmTimestampsLumi', function ($window, DataUtils) {
             };
 
             scope.$watch("data", setData);
-            scope.$watch("showAll", setData); 
+            scope.$watch("showAll", setData);
 
             scope.$watch("graph_data", updateGraph);
             scope.$watch("metric", updateGraph);
@@ -286,6 +286,7 @@ mod.directive('graphDqmEventsLumi', function ($window, DataUtils) {
                 .reduceXTicks(false ) // default is true and we don't want that
                 .rotateLabels(0)      //Angle to rotate x-axis labels.
                 .groupSpacing(0.1)    //Distance between each group of bars.
+                .color(d3.scale.category10().range());
 
             chart.tooltipContent(DataUtils.make_file_tooltip);
 
