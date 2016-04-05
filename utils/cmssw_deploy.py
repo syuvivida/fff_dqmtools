@@ -78,7 +78,7 @@ def log_shell(line):
         level = int(match.group(1)) + 1
         line = log_shell_re.sub("", line)
 
-    log.info("[%d]  %s" % (level, line))
+    log.info("[%d] %s" % (level, line))
     handler.flush()
 
 def shell_cmd(cmd, callback=None, guard=False, merge_stderr=True, **kwargs):
