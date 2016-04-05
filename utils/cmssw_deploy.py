@@ -1,7 +1,9 @@
+import collections
 import subprocess
 import logging
 import fnmatch
 import pickle
+import socket
 import time
 import json
 import sys
@@ -10,15 +12,56 @@ import re
 
 from collections import namedtuple
 
-log_prefix = int(os.environ.get("CMSSW_MANAGER_LOG_PREFIX", "0"))
-logging.basicConfig(level=logging.INFO, format="[%d] " % log_prefix+ '%(message)s')
+# 'special' logger
+class BufferedHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+
+        self.backlog = collections.deque()
+        self.backlog_size = 0
+        self.backlog_size_max = 64*1024*1024
+
+        self.aux_file = None
+
+    def write_line(self, line):
+        if self.aux_file is None:
+            self.backlog.append(line)
+            self.backlog_size += len(line)
+
+            while self.backlog_size > self.backlog_size_max:
+                x = self.backlog.popleft()
+                self.backlog_size -= len(x)
+        else:
+            self.aux_file.write(line)
+
+    def use_file(self, fn):
+        if self.aux_file is not None:
+            self.aux_file.close()
+
+        self.aux_file = open(fn, "a")
+        while self.backlog:
+            x = self.backlog.popleft()
+            self.backlog_size -= len(x)
+
+            self.aux_file.write(x)
+
+        self.aux_file.flush()
+
+    def emit(self, record):
+        logging.StreamHandler.emit(self, record)
+        self.write_line(self.format(record) + "\n")
+
+    def flush(self):
+        logging.StreamHandler.flush(self)
+
+        if self.aux_file is not None:
+            self.aux_file.flush()
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-def log_raw(msg):
-    sys.stderr.write(msg)
-    sys.stderr.flush()
+handler = BufferedHandler()
+log.addHandler(handler)
 
 MergeRequest = namedtuple('MergeRequest', ['id', 'type', 'label', 'arg'])
 ScramProject = namedtuple('ScramProject', ['project', 'title', 'tag', 'arch', 'path', 'mtime'])
@@ -27,6 +70,17 @@ Commit = namedtuple('Commit', ['hash', 'title'])
 CacheFile = "~/.cmssw_deploy.pkl"
 UserConfigFile = "~/.cmssw_deploy.jsn"
 
+log_shell_re = re.compile("^\[(\d)\]\s")
+def log_shell(line):
+    level = 0
+    match = log_shell_re.match(line)
+    if match:
+        level = int(match.group(1)) + 1
+        line = log_shell_re.sub("", line)
+
+    log.info("[%d]  %s" % (level, line))
+    handler.flush()
+
 def shell_cmd(cmd, callback=None, guard=False, merge_stderr=True, **kwargs):
     log.info("Exec: %s", " ".join(cmd))
 
@@ -34,9 +88,9 @@ def shell_cmd(cmd, callback=None, guard=False, merge_stderr=True, **kwargs):
     if merge_stderr:
         args["stderr"] = subprocess.STDOUT
 
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, **args)
+    p = subprocess.Popen(cmd, bufsize=1, stdout=subprocess.PIPE, **args)
 
-    for line in p.stdout:
+    for line in iter(p.stdout.readline, b''):
         r = False
         if callback:
             r = callback(line)
@@ -44,7 +98,8 @@ def shell_cmd(cmd, callback=None, guard=False, merge_stderr=True, **kwargs):
         if r is True:
             pass
         else:
-            log.info("o: %s", line.rstrip())
+            # nice log
+            log_shell(line.rstrip())
 
     ret = p.wait()
 
@@ -366,14 +421,16 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
     script = os.path.abspath(sys.argv[0])
 
     for mr in list_os_mr:
+        log.info("")
+        log.info("")
+        log.info("")
+        log.info("Start *****merging***** new PR: %s", mr)
+
         # prepare args and env
         argv = cmd_prefix + [sys.executable, script, ]
         if args.no_build:
             argv += ["--no-build"]
         argv += ["apply-pr", "-p", mr.arg]
-
-        env = os.environ.copy()
-        env["CMSSW_MANAGER_LOG_PREFIX"] = str(log_prefix + 1)
 
         # prepare backup of src
         base_src_path = os.path.join(base_path, "src")
@@ -383,16 +440,12 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
         # create log file
         merge_log_file = os.path.join(base_path, "merge." + str(mr.label) + ".log")
         log.info("Logging into: %s", merge_log_file)
-        merge_log_f = open(merge_log_file, "w")
 
-        def merge_log(line):
-            merge_log_f.write(line)
-            log_raw(line)
-            return True
-
-        r = shell_cmd(argv, env=env, cwd=base_src_path, merge_stderr=True, callback=merge_log)
+        merge_log_file_rel = os.path.relpath(merge_log_file, base_src_path)
+        argv += ["--log", merge_log_file_rel]
+        
+        r = shell_cmd(argv, cwd=base_src_path, merge_stderr=True)
         status[mr] = (r, merge_log_file)
-        merge_log_f.close()
 
         # restore backup on failure
         if r == 0:
@@ -415,10 +468,10 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
     log.warning("Applied merge requests (%d):", len(status))
     for mr in status.keys():
         if status[mr][0] == 0:
-            log.info("%s: success", mr)
+            log.info("  %s: success", mr)
         else:
-            log.info("%s: failed", mr)
-            log.info("See: %s", status[mr][1])
+            log.info("  %s: failed", mr)
+            log.info("  See: %s", status[mr][1])
 
 def make_release(sc, args):
     # go to a specified directory, if specified
@@ -429,6 +482,10 @@ def make_release(sc, args):
     # find the release to use
     target = select_target(sc.scram_projects, args.tag, args.arch, args.tag_blacklist)
     log.info("Selected release: %s %s", target.arch, target.tag)
+
+    log.info("Make release invoked on: %s", socket.gethostname())
+    log.info("Make release args: %s", args)
+    #log.info("Make release env: %s", os.environ)
 
     # generate the directory_name
     components = [target.tag]
@@ -498,10 +555,19 @@ def make_release(sc, args):
         shell_cmd(["rsync", "-ap", base_path + "/", base_final_path + "/"], guard=True)
         shell_cmd(["scram", "b", "ProjectRename"], guard=True, cwd=base_final_path)
 
+        # switch back the path
+        base_cwd = base_final_cwd
+        base_path = base_final_path
+
         for tmp in tmp_to_delete:
             shell_cmd(["rm", "-fr", tmp], guard=True)
 
     log.warning("Made release area: %s", name)
+
+    if handler.aux_file is None:
+        log_file = os.path.join(base_path, "make_release.log")
+        log.warning("Saving log file to: %s", log_file)
+        handler.use_file(log_file)
 
 class UserConfig(object):
     """ Manager user configuration parameters.
@@ -549,6 +615,7 @@ def parse_args():
     group.add_argument("--path", type=str, default=user_config.get_config("path", "./"), help="Default path.")
     group.add_argument("-u", action="store_true", help="Force update/rescan of github and scram, for new releases and stuff.")
     group.add_argument("--no-cache", action="store_true", help="Don't cache anything.")
+    group.add_argument("--log", type=str, help="Log file to append (does not quiet stdout)")
 
     group = parser.add_argument_group('release_info', 'Release information')
     group.add_argument("-t", "--tag", type=str, default="", help="Main release tag to use as a base (this is scram tag, not git's.")
@@ -589,6 +656,9 @@ if __name__ == "__main__":
         scram_cache.update()
         if not args.no_cache:
             scram_cache.save()
+
+    if args.log:
+        handler.use_file(args.log)
 
     command = args.command
     if command == "update":
