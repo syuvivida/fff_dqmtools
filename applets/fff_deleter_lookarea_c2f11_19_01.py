@@ -18,6 +18,7 @@ def __run__(opts, **kwargs):
         thresholds = {
             'rename': 60,
             'delete': 80,
+            'delete_folders': True,
         },
         log = log,
         report_directory = opts["path"],

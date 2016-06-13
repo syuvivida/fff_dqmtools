@@ -1,0 +1,116 @@
+<div ng-controller="IntegrationCtrl">
+
+  <div ng-show="_.size(SyncPool._conn) == 0">
+    <div class="runs alert-danger alert">
+      <strong> Warning! </strong> No hosts selected, nothing to monitor.
+    </div>
+  </div>
+
+  <!--ul class="list-group">
+    <li class="list-group-item" dqm-pull-request="14734"> xxx </li>
+  </ul-->
+
+  <div ng-controller="CachedDocumentCtrl" doc-id-list="IntegrationCtrl.release_ids">
+    <table class="table hide-actions" dqm-sorted-table="" key="LocParams.p.sortKey" path="sortPath">
+      <thead>
+        <tr>
+          <th dqm-sort-header="build_time" path="build_time">Date</th>
+          <th dqm-sort-header="Name">Name</th>
+          <th ># PR</th>
+          <th dqm-sort-header="state">State</th>
+
+          <!--th dqm-sort-header="cmssw_lumi" path="cmssw_lumi | dqm_int">LS</th>
+          <th dqm-sort-header="rss" path="extra.ps_info.VmRSS | dqm_megabytes">RSS</th>
+          <th dqm-sort-header="events_rate" path="events_rate | dqm_int">Total Ev.</th-->
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody ng-hide="documents.length">
+      <tr class="align-center active"><td colspan="100">no data</td></tr>
+      </tbody>
+
+      <tbody>
+        <tr ng-repeat-start="doc in (documents | dqm_exitcode_filter:LocParams.p.filter | orderBy:sortPath) track by doc._id" ng-class="doc | dqm_exitcode_class" dqm-refresh="doc">
+          <td class="nowrap">
+            {{ doc.build_time*1000 | date:'yyyy-MM-dd HH:mm:ss' }}
+            <dqm-timediff-field time="doc.timestamp">
+          </td>
+
+          <td class="nowrap"> {{ doc.name}} </td>
+          <td class="nowrap">
+              {{ doc.extra.pull_requests.length || 0 }}
+              <a ng-hide="_show_inline == 'pr_info'" ng-click="_show_inline = 'pr_info'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
+              <a ng-show="_show_inline == 'pr_info'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          </td>
+
+          <td class="nowrap actions">
+            <dqm-lumi-state lumi="doc.cmssw_lumi" state="doc.extra.lumi_seen"></dqm-lumi-state>
+
+            <a ng-hide="_show_inline == 'lumi'" ng-click="_show_inline = 'lumi'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-list"></span></a>
+            <a ng-show="_show_inline == 'lumi'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          </td>
+
+          <td class="nowrap">
+            <a ng-hide="_show_inline == 'source'" ng-click="_show_inline = 'source'" class="hover-hide btn btn-default btn-xs"><span class="glyphicon glyphicon-comment"></span></a>
+            <a ng-show="_show_inline == 'source'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+
+            <a ng-hide="_show_inline == 'log'" ng-click="_show_inline = 'log'" class="hover-hide btn btn-default btn-xs">log</a>
+            <a ng-show="_show_inline == 'log'" ng-click="_show_inline = null" class="btn btn-default btn-xs active"><span class="glyphicon glyphicon-remove"></span></a>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'pr_info'" dqm-refresh="doc">
+          <td colspan="100">
+            <ul class="list-group">
+              <li class="list-group-item" ng-repeat="pr in doc.extra.pull_requests" dqm-pull-request="pr.id"></li>
+            </ul>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'log'" dqm-refresh="doc">
+          <td colspan="100">
+            <dqm-log log="doc.extra.log"></dqm-log>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'lumi'" dqm-refresh="doc">
+          <td colspan="100">
+            <pre class="prettyprint" lang="text">{{ doc.extra.lumi_seen | dqm_lumi_seen }}</pre>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'ps_info'" dqm-refresh="doc">
+          <td colspan="100">
+            <pre class="prettyprint" lang="json" prettify-source="doc.extra.ps_info | json"></pre>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'mem_graph'" dqm-refresh="doc">
+          <td colspan="100">
+            <dqm-memory-graph height="300" width="800" data="doc.extra.mem_info" />
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'lumi_graph'" dqm-refresh="doc">
+          <td colspan="100">
+            <dqm-lumi-graph height="300" width="800" data="doc.extra.lumi_stats" />
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'source'" dqm-refresh="doc">
+          <td colspan="100">
+            <pre class="prettyprint" lang="json" prettify-source="doc | json"></pre>
+          </td>
+        </tr>
+
+        <tr ng-if="_show_inline == 'cmd'" dqm-refresh="doc" ng-repeat-end>
+          <td colspan="100">
+            <pre class="prettyprint" lang="json" prettify-source="doc.cmdline | json"></pre>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div> <!-- cached document -->
+
+</div>

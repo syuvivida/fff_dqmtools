@@ -1140,3 +1140,23 @@ mod.factory('DataUtils', [function () {
 
     return me;
 }]);
+
+mod.factory('GithubService', ['$http', '$q', function ($http, $q) {
+    var me = {
+		url_pr: "https://api.github.com/repos/cms-sw/cmssw/pulls/",
+		_pr_cache: {},
+	};
+
+
+	me.get_pr_info = function (pr_id) {
+		if (me._pr_cache[pr_id] === undefined) {
+			var rq = $http.get(me.url_pr + pr_id);
+			me._pr_cache[pr_id] = rq;
+		}
+
+		return me._pr_cache[pr_id];
+	};
+
+
+    return me;
+}]);

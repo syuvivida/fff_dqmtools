@@ -9,25 +9,43 @@ import subprocess
 import socket
 import time
 import json
-from collections import OrderedDict
+import shutil
+from collections import OrderedDict, namedtuple
 
 import fff_dqmtools
 import fff_filemonitor
 import fff_cluster
 
+DataEntry = namedtuple("DataEntry", ["key", "path", "fsize", "ftime"])
+
 re_files = re.compile(r"^run(?P<run>\d+)/(open\/){0,1}run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
 def parse_file_name(rl):
     m = re_files.match(rl)
     if not m:
-        return None
+        return None, None
 
     d = m.groupdict()
     sort_key = (int(d["run"]), int(d["runf"]), int(d["ls"]), d["leftover"])
-    return sort_key
 
-def collect(top, parse_func, log):
-    # entry format (sort_key, path, size)
+    run_path = "run" + d["run"]
+    return sort_key, run_path
+
+def collect(top, log):
+    # entry format for files: DataEntry
     collected = []
+
+    # same as above, but per directory
+    collected_paths = {}
+
+    def stat(x):
+        try:
+            stat = os.stat(x)
+            fsize = stat.st_size
+            ftime = stat.st_ctime
+            return fsize, ftime
+        except:
+            log.error("Failed to stat file or directory: %s", fp, exc_info=True)
+            return 0, 0
 
     for root, dirs, files in os.walk(top, topdown=True):
         root_rl = os.path.relpath(root, top)
@@ -43,20 +61,27 @@ def collect(top, parse_func, log):
             fp = os.path.join(root, name)
             rl = os.path.join(root_rl, name)
 
-            sort_key = parse_func(rl)
+            # rl is always root relative!
+            sort_key, run_rl = parse_file_name(rl)
             if sort_key:
-                try:
-                    stat = os.stat(fp)
-                    fsize = stat.st_size
-                    ftime = stat.st_mtime
-                    if fsize != 0:
-                        collected.append((sort_key, fp, fsize, ftime, ))
-                except:
-                    log.error("Failed to stat file: %s", fp, exc_info=True)
+                run_fp = os.path.join(top, run_rl)
+                if not collected_paths.has_key(run_fp):
+                    _dsize, dtime = stat(run_fp)
+                    collected_paths[run_rl] = DataEntry(run_rl, run_fp, 0, dtime)
+
+                fsize, ftime = stat(fp)
+                if fsize != 0:
+                    collected.append(DataEntry(sort_key, fp, fsize, ftime))
+
+                    d = collected_paths[run_rl]
+                    collected_paths[run_rl] = d._replace(fsize=d.fsize + fsize)
 
     # for now just use simple sort
     collected.sort(key=lambda x: x[0])
-    return collected
+
+    collected_paths = list(collected_paths.values())
+    collected_paths.sort(key=lambda x: x[0])
+    return collected, collected_paths
 
 class FileDeleter(object):
     def __init__(self, top, thresholds, report_directory, log, fake=True, app_tag="fff_deleter"):
@@ -110,6 +135,15 @@ class FileDeleter(object):
 
         return f
 
+    def delete_folder(self, folder):
+        if self.fake:
+            self.log.warning("Deleting folder (fake): %s", folder)
+        else:
+            self.log.warning("Deleting folder: %s", folder)
+            shutil.rmtree(folder)
+
+        return folder
+
     def calculate_threshold(self, type_string):
         """ Calculates how much bytes we have to delete
             in order to reach the threshold percentange.
@@ -143,7 +177,7 @@ class FileDeleter(object):
         # do the action until we reach the target sizd
         self.log.info("Started file collection at %s", self.top)
         start = time.time()
-        collected = collect(self.top, parse_file_name, self.log)
+        collected, collected_paths = collect(self.top, self.log)
         self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
         updated = []
@@ -164,15 +198,28 @@ class FileDeleter(object):
                 else:
                     new_fp = self.rename(fp)
 
-                updated.append((sort_key, new_fp, fsize, ftime, ))
+                updated.append(DataEntry(sort_key, new_fp, fsize, ftime))
             else:
-                updated.append((sort_key, fp, fsize, ftime, ))
+                updated.append(DataEntry(sort_key, fp, fsize, ftime))
                 updated += collected
                 break
 
             # stopSizeDelete can still be positive after this
             # meaning some files have to be deleted, but have not been (only marked)
             # these files will be deleted next iteration (30s.)
+
+        if self.thresholds.has_key("delete_folders") and self.thresholds["delete_folders"]:
+            for entry in collected_paths:
+
+                # check if empty - we don't non-empty dirs
+                # empty in a 'no stream files left to truncate' sense
+                if entry.fsize != 0: continue
+
+                # check if older than 7 days
+                age = start - entry.ftime
+                if age <= 48*60*60: continue
+
+                self.delete_folder(entry.path)
 
         return updated
 
@@ -239,6 +286,7 @@ class FileDeleter(object):
             "tag": self.app_tag,
             "extra": {
                 "files_seen": collected,
+                "thresholds": self.thresholds,
             },
             "pid": os.getpid(),
             "_id": "dqm-diskspace-%s-%s" % (self.hostname, self.app_tag, ),

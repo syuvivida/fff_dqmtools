@@ -58,14 +58,11 @@ class BufferedHandler(logging.StreamHandler):
             self.aux_file.flush()
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
 
-handler = BufferedHandler()
-log.addHandler(handler)
-
-MergeRequest = namedtuple('MergeRequest', ['id', 'type', 'label', 'arg'])
+MergeRequest = namedtuple('MergeRequest', ['id', 'type', 'label', 'arg', 'log'])
 ScramProject = namedtuple('ScramProject', ['project', 'title', 'tag', 'arch', 'path', 'mtime'])
 Commit = namedtuple('Commit', ['hash', 'title'])
+ReleaseEntry = namedtuple('ReleaseEntry', ["name", "path", "pull_requests", "options", "build_time", "log"])
 
 CacheFile = "~/.cmssw_deploy.pkl"
 UserConfigFile = "~/.cmssw_deploy.jsn"
@@ -241,7 +238,7 @@ def get_list_of_pr(string):
             if p.startswith("+"):
                 t = "cherry-pick"
 
-            m = MergeRequest(i, t, label="%d" % i, arg=p)
+            m = MergeRequest(i, t, label="%d" % i, arg=p, log=None)
             pull_requests.append(m)
 
     return pull_requests
@@ -443,7 +440,7 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
 
         merge_log_file_rel = os.path.relpath(merge_log_file, base_src_path)
         argv += ["--log", merge_log_file_rel]
-        
+
         r = shell_cmd(argv, cwd=base_src_path, merge_stderr=True)
         status[mr] = (r, merge_log_file)
 
@@ -485,6 +482,7 @@ def make_release(sc, args):
 
     log.info("Make release invoked on: %s", socket.gethostname())
     log.info("Make release args: %s", args)
+    log.info("Make release cmdline: %s", " ".join(sys.argv))
     #log.info("Make release env: %s", os.environ)
 
     # generate the directory_name
@@ -641,6 +639,10 @@ def parse_args():
     return args
 
 if __name__ == "__main__":
+    log.setLevel(logging.INFO)
+    handler = BufferedHandler()
+    log.addHandler(handler)
+
     args = parse_args()
 
     # init or load git/scram cache

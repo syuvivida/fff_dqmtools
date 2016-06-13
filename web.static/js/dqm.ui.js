@@ -210,6 +210,14 @@ mod.filter("dqm_shorten_tag", function() {
     };
 });
 
+mod.filter("dqm_no_cms", function() {
+    return function(input) {
+        var s = input || '';
+        s = s.replace(/\.cms$/, '');
+        return s;
+    };
+});
+
 mod.filter("dqm_exitcode_filter", function() {
     return function (docs, hide_str) {
         var hs = hide_str || "";
@@ -230,6 +238,19 @@ mod.filter("dqm_exitcode_filter", function() {
             }
 
             return (hs.indexOf(f) == -1);
+        });
+    };
+});
+
+mod.filter("dqm_release_filter", function() {
+    return function (docs, hide_str) {
+        var hs = hide_str || "";
+
+        if (!docs)
+            return docs;
+
+        return _.filter(docs, function (doc) {
+            return true;
         });
     };
 });
@@ -264,6 +285,10 @@ mod.directive('dqmLog', function ($window, $interval) {
                     console.log("hey");
                     var arr = JSON.parse(log);
                     return arr.join("");
+                }
+
+                if (log.length > 0) {
+                    return log;
                 }
 
                 return "logfile not available";
@@ -473,5 +498,52 @@ mod.directive('dqmRefresh', function ($interval, $window) {
             scope.$watch("doc._rev", update);
         },
     };
+});
 
+
+mod.directive('dqmPullRequest', function (GithubService) {
+    return {
+        restrict: 'A',
+        replace: false,
+        scope: { "dqmPullRequest": '=' },
+        link: function(scope, element, attrs) {
+            GithubService.fetch
+
+            scope.data = {};
+            var update = function (data) {
+                scope.data = data;
+                console.log(scope.data);
+
+                scope.state = data.state;
+                if (data.state == "closed" && data.merged)
+                    scope.state = "merged";
+
+                scope.state_label = "label-danger";
+                if (scope.state == "open")
+                    scope.state_label = "label-info";
+                else if (scope.state == "merged")
+                    scope.state_label = "label-success";
+            };
+
+            scope.$watch("dqmPullRequest", function (pull) {
+                scope.pr = parseInt(pull);
+
+                GithubService.get_pr_info(scope.pr).then(function (resp) {
+                    update(resp.data);
+                });
+            })
+        },
+        template: ""
+            + "<a ng-href='{{ data.html_url }}' class='list-group-item'>"
+            + "<h4 class='list-group-item-heading'>"
+            + "  {{ pr }}"
+            + "  {{ data.title }}"
+            + "  <span class='label {{ state_label }}'><strong>{{ data.user.login }}:</strong> {{ state }}</span>"
+            + "  <span class='text-success'>+{{ data.additions || 0}}</span>"
+            + "  <span class='text-danger'>-{{ data.deletions || 0}}</span>"
+            + "  <span class='text-info'>@{{ data.changed_files || 0}}</span>"
+            + "</h4>"
+            + "<p class='list-group-item-text'> {{ data.body }} </p>"
+            + "</a>",
+    };
 });

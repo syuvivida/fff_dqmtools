@@ -303,9 +303,38 @@ dqmApp.controller('RunStatsCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParam
 }]);
 
 
+dqmApp.controller('IntegrationCtrl', ['$scope', '$rootScope', 'SyncPool', 'LocParams', 'GithubService', function($scope, $rootScope, SyncPool, LocParams, GithubService) {
+	var me = this;
+
+    me.parse_headers = function (headers, reload) {
+        if (reload) {
+            me.release_ids = [];
+        };
+
+        _.each(headers, function (head) {
+            if (head.type == "dqm-release")
+                me.release_ids.push(head._id)
+
+		});
+
+        me.release_ids.sort();
+        me.release_ids = _.uniq(me.release_ids, true);
+	};
+
+	GithubService.get_pr_info(14734);
+
+	SyncPool.subscribe_headers(me.parse_headers);
+	$scope.$on("$destroy", function() {
+		SyncPool.unsubscribe_headers(me.parse_headers);
+	});
+
+	$scope.IntegrationCtrl = me;
+}]);
+
 dqmApp.config(function($routeProvider, $locationProvider) {
   $routeProvider
     .when('/lumi/', { menu: 'lumi', templateUrl: 'templates/lumi.html', reloadOnSearch: false })
+    .when('/int/', { menu: 'int', templateUrl: 'templates/int.html', reloadOnSearch: false })
     .when('/stats/', { menu: 'stats', templateUrl: 'templates/stats.html', reloadOnSearch: false })
     .otherwise({ redirectTo: '/lumi' });
 

@@ -37,6 +37,7 @@
           <div class="navbar-collapse collapse">
             <ul class="nav navbar-nav">
               <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
+              <li ng-class="{ active: $route.current.menu == 'int' }"><a href="" ng-click="setPage('int')">Integration</a></li>
               <li ng-show="dqm_number == 3" ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Stats</a></li>
 
               <li ng-show="LocParams.p.hideRunBrowser"><a href="" ng-click="LocParams.setKey('hideRunBrowser', null)">Browser</a></li>
@@ -77,7 +78,7 @@
                         <a ng-show="NavigationCtrl.check_hosts([host])" class="btn btn-xs btn-success" href="" ng-click="NavigationCtrl.disable_hosts([host]); $event.stopPropagation();">ws</a>
                         <a ng-hide="NavigationCtrl.check_hosts([host])" class="btn btn-xs btn-default" href="" ng-click="NavigationCtrl.enable_hosts([host]); $event.stopPropagation();">ws</a>
                         <a ng-href="http://{{ host }}:9215/">{{ host }}</a>
-                        <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host }}">[icinga]</a>
+                        <a class="icinga" ng-href="http://cmspnp4nagios.cern.ch/pnp4nagios//graph?host={{ host | dqm_no_cms }}">[icinga]</a>
                       </li>
                     </ul>
                   </li>
