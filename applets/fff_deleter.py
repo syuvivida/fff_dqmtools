@@ -19,6 +19,7 @@ import fff_cluster
 DataEntry = namedtuple("DataEntry", ["key", "path", "fsize", "ftime"])
 
 re_files = re.compile(r"^run(?P<run>\d+)/(open\/){0,1}run(?P<runf>\d+)_ls(?P<ls>\d+)(?P<leftover>_.+\.(dat|raw|pb))(\.deleted){0,1}$")
+re_folders = re.compile(r"^run(?P<run>\d+)$")
 def parse_file_name(rl):
     m = re_files.match(rl)
     if not m:
@@ -57,6 +58,12 @@ def collect(top, log):
         # don't recurse into "deleted" runs
         dirs[:] = [d for d in dirs if not (d.startswith("run") and ".deleted" in d)]
 
+        # insert folder descriptions
+        if re_folders.match(root_rl) is not None:
+            if not collected_paths.has_key(root_rl):
+                _dsize, dtime = stat(root)
+                collected_paths[root_rl] = DataEntry(root_rl, root, 0, dtime)
+
         for name in files:
             fp = os.path.join(root, name)
             rl = os.path.join(root_rl, name)
@@ -64,11 +71,6 @@ def collect(top, log):
             # rl is always root relative!
             sort_key, run_rl = parse_file_name(rl)
             if sort_key:
-                run_fp = os.path.join(top, run_rl)
-                if not collected_paths.has_key(run_fp):
-                    _dsize, dtime = stat(run_fp)
-                    collected_paths[run_rl] = DataEntry(run_rl, run_fp, 0, dtime)
-
                 fsize, ftime = stat(fp)
                 if fsize != 0:
                     collected.append(DataEntry(sort_key, fp, fsize, ftime))
@@ -217,7 +219,7 @@ class FileDeleter(object):
 
                 # check if older than 7 days
                 age = start - entry.ftime
-                if age <= 48*60*60: continue
+                if age <= 7*24*60*60: continue
 
                 self.delete_folder(entry.path)
 
