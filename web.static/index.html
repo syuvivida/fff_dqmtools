@@ -37,7 +37,7 @@
           <div class="navbar-collapse collapse">
             <ul class="nav navbar-nav">
               <li ng-class="{ active: $route.current.menu == 'lumi' }"><a href="" ng-click="setPage('lumi')">Runs</a></li>
-              <li ng-class="{ active: $route.current.menu == 'int' }"><a href="" ng-click="setPage('int')">Integration</a></li>
+              <li ng-show="dqm_number == 3" ng-class="{ active: $route.current.menu == 'int' }"><a href="" ng-click="setPage('int')">Integration</a></li>
               <li ng-show="dqm_number == 3" ng-class="{ active: $route.current.menu == 'stats' }"><a href="" ng-click="setPage('stats')">Stats</a></li>
 
               <li ng-show="LocParams.p.hideRunBrowser"><a href="" ng-click="LocParams.setKey('hideRunBrowser', null)">Browser</a></li>
@@ -140,6 +140,8 @@
 
     <script src="external/d3/d3.js"></script>
     <script src="external/nvd3/nv.d3.js"></script>
+
+    <script src="external/Chart.bundle.js"></script>
 
     <script src="js/dqm.ui.js"></script>
     <script src="js/dqm.db.js"></script>

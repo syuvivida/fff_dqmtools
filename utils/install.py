@@ -21,6 +21,9 @@ def install_local(rpm):
     #call(["sudo rm -frv /var/lib/fff_dqmtools"], shell=True)
     call(["sudo", "yum", "-y", "install", rpm])
 
+    # restart hltd
+    #call(["sudo", "/sbin/service", "hltd", "restart"])
+
     ### reset init
     ##call(["sudo /sbin/chkconfig --del fff_dqmtools"], shell=True)
     ##call(["sudo /sbin/chkconfig --add fff_dqmtools"], shell=True)

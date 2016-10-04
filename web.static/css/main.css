@@ -84,3 +84,21 @@ ol.breadcrumb span.blue { color: #337AB7; }
 	50%  { opacity: 0.60; }
 	100% { opacity: 1; }
 }
+
+div.chartjs-custom-tooltip {
+    background: rgba(0, 0, 0, .5);
+    padding: 7px;
+    border-radius: 5px;
+    color: white;
+
+    position: absolute;
+    opacity: 0;
+    visibility: hidden;
+
+    transition: opacity 0.5s linear, visibility 0.5s linear;
+
+    transform: translate(-50%, -105%);
+    -webkit-transform: translate(-50%, -105%);
+}
+
+div.chartjs-custom-tooltip h3 { border-bottom: 1px solid #eee; margin-top: 0px; padding-bottom: 10px; }

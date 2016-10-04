@@ -184,7 +184,7 @@ Connection.make_http_proxy = function (uri) {
 };
 
 
-mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $window, $rootScope) {
+mod.factory('SyncPool', ['$http', '$window', '$rootScope', '$timeout', function ($http, $window, $rootScope, $timeout) {
     var factory = {};
 
     factory._conn = {};
@@ -248,7 +248,8 @@ mod.factory('SyncPool', ['$http', '$window', '$rootScope', function ($http, $win
             handler(conn, evt);
         });
 
-        $rootScope.$apply();
+        $timeout(function () {});
+        //$rootScope.$apply();
     };
 
     factory.Connection = Connection;
@@ -421,7 +422,7 @@ mod.factory('SyncDocument', ['SyncPool', '$window', '$http', '$q', function (Syn
         var req = {
             "id": id,
             "source": header._source,
-            "timeout": 15,
+            "timeout": 15*3,
             "defer": deferred,
         };
 
@@ -551,11 +552,11 @@ mod.factory('CachedDocument', ['SyncPool', 'SyncDocument', '$window', '$http', '
 
         SyncPool.subscribe_events(cacher._process_event);
         cacher.destroy = function () {
+            _.each(_.keys(cacher._doc_map), cacher._exit_document);
             SyncPool.unsubscribe_events(me._process_event);
         };
 
         cacher.update = function () {};
-
         cacher.set_ids = function (ids) {
             // this is called then we get a complete new list of ids
             // we check if we have some overlap (keep the overlapping ids)
@@ -776,35 +777,35 @@ mod.factory('RunStats', ['SyncRun', 'CachedDocument', '$window', '$http', '$q', 
             if (doc.type == 'dqm-files') {
                 stats.run_started = doc.extra.global_start;
 
-                // this calculates delays from timestamps
-                var streams = doc.extra.streams;
-                var parsed_streams = DataUtils.process_stream_data(doc, null, null);
+                _.each(_.keys(doc.extra.streams), function (stream_key, stream_index) {
+                    var ct = []; // array of all ctimes
 
-                var total_nevents = 0;
-                var total_size = 0;
+                    // unpack lumi data
+                    var stream_data = doc.extra.streams[stream_key];
+                    _.each(stream_data.lumis, function (_lumi, index) {
+                        var v = DataUtils.calc_extended(doc, stream_key, index);
 
-                _.each(parsed_streams.streams, function (so) {
-                    _.map(so.values, function (x) {
-                        stats["file_delivery_evt_accepted"] += x['evt_accepted'];
-                        stats["file_delivery_fsize"] += x['fsize'];
+                        stats["file_delivery_evt_accepted"] += v['evt_accepted'];
+                        stats["file_delivery_fsize"] += v['fsize'];
+                        ct.push(v['delay_ctime']);
                     });
-
-                    var ct = _.map(so.values, function (x) { return x['delay_ctime']; });
 
                     var mean = _.reduce(ct, function(m, b) { return m + b; }, 0) / ct.length;
                     var mean2 = _.reduce(ct, function(m, b) { return m + b*b; }, 0) / ct.length
                     var std_dev = Math.sqrt(mean2 - mean*mean);
 
-                    //console.log("mean", mean, "mean2", mean2, "sigma", std_dev);
-                    stats["file_delivery_mean:" + so.key] = mean;
-                    stats["file_delivery_sigma:" + so.key] = std_dev;
-                    if (so.key == "DQM") {
+                    var key = DataUtils.pretty_stream_key(stream_key);
+
+                    stats["file_delivery_mean:" + key] = mean;
+                    stats["file_delivery_sigma:" + key] = std_dev;
+                    if (key == "DQM") {
                         stats.file_delivery_mean = mean;
                         stats.file_delivery_sigma = std_dev;
                     }
 
-                    if ((so.values.length) && (stats["file_delivery_lumi"] < so.values[so.values.length - 1].lumi)) {
-                        stats["file_delivery_lumi"] = so.values[so.values.length - 1].lumi;
+                    var last_lumi = _.last(stream_data.lumis);
+                    if (last_lumi && (stats["file_delivery_lumi"] < last_lumi)) {
+                        stats["file_delivery_lumi"] = last_lumi;
                     }
                 });
             }
@@ -957,155 +958,57 @@ mod.factory('DataUtils', [function () {
     var me = {};
 
     me.LUMI = 23.310893056;
-    me.process_stream_data = function (data, limit_lumi, old_graph_data, do_interpolate) {
-        if ((!data) || (!data.extra) || (!data.extra.streams)) {
-            // we have no data available
-            // so just render "no_data"
 
-            return null;
-        };
+    me.pretty_stream_key = function (key) {
+        var m = /^stream([A-Za-z0-9]+).*$/.exec(key);
 
-        // we want to extract "disabled" field from the old data
-        var preserve = {};
-        if (old_graph_data) {
-            _.each(old_graph_data.streams, function (obj) {
-                preserve[obj.key] = _.clone(obj);
-            });
-        };
+        if (m) {
+            return m[1];
+        }
 
-        var date_start = data.extra.global_start;
-        var streams = data.extra.streams;
+        return key;
+    };
 
-        var filter = function (arr) {
-            if (!arr)
-                return arr;
+    me.calc_extended = function (data, stream_key, index) {
+        var global_start    = data.extra.global_start;
+        var stream          = data.extra.streams[stream_key];
 
-            if (!limit_lumi)
-                return arr;
+        var lumi            = stream.lumis[index];
+        var mtime           = stream.mtimes[index];
+        var ctime           = stream.ctimes[index];
+        var evt_accepted    = stream.evt_accepted[index];
+        var evt_processed   = stream.evt_processed[index];
+        var fsize           = stream.fsize[index];
 
-            return arr.slice(Math.max(arr.length - limit_lumi, 0))
-        };
+        // timeout from the begging of the run
+        var start_offset_mtime = mtime - global_start - me.LUMI;
+        var start_offset_ctime = ctime - global_start - me.LUMI;
+        var lumi_offset = (lumi - 1) * me.LUMI;
 
-        var interpolate = function (arr) {
-            if (!arr)
-                return arr;
+        // timeout from the time we think this lumi happenned
+        var delay_mtime = start_offset_mtime - lumi_offset;
+        var delay_ctime = start_offset_ctime - lumi_offset;
 
-            var ret = [];
-
-            _.each(arr, function (v) {
-                var last_entry = ret[ret.length - 1] || null;
-                if (last_entry) {
-                    var i = parseInt(last_entry.lumi) + 1;
-                    var d = parseInt(v.lumi);
-                    for (;i < v.lumi; i++) {
-                        ret.push({
-                            'lumi': i,
-                            'mtime': -1,
-                            'ctime': -1,
-
-                            'start_offset_mtime': 0,
-                            'start_offset_ctime': 0,
-                            'delay_mtime': 0,
-                            'delay_ctime': 0,
-
-                            'evt_accepted':  0,
-                            'evt_processed': 0,
-                            'fsize': 0,
-                        });
-                    }
-                }
-
-                ret.push(v);
-            });
-
-            return ret;
-        };
-
-        var pretty_key = function (key) {
-            var m = /^stream([A-Za-z0-9]+).*$/.exec(key);
-
-            if (m) {
-                return m[1];
-            }
-
-            return key;
-        };
-
-        var min_lumi = NaN;
-        var max_lumi = NaN;
-
-        var graph_data = _.map(_.keys(streams), function (k) {
-            var lumis = filter(streams[k].lumis);
-            var mtimes = filter(streams[k].mtimes);
-            var ctimes = filter(streams[k].ctimes);
-            if (!ctimes)
-                ctimes = mtimes;
-
-            var evt_accepted = filter(streams[k].evt_accepted);
-            var evt_processed = filter(streams[k].evt_processed);
-            var fsize = filter(streams[k].fsize);
-
-            var key = pretty_key(k);
-            var e = preserve[key] || {};
-
-            e["key"] = pretty_key(k);
-            e["stream"] = k;
-            e["values"] = _.map(lumis, function (_lumi, index) {
-                var lumi = parseInt(lumis[index]);
-                var mtime = mtimes[index];
-                var ctime = ctimes[index];
-
-                if (!(min_lumi <= lumi)) min_lumi = lumi;
-                if (!(max_lumi >= lumi)) max_lumi = lumi;
-
-                // timeout from the begging of the run
-                var start_offset_mtime = mtime - date_start - me.LUMI;
-                var start_offset_ctime = ctime - date_start - me.LUMI;
-                var lumi_offset = (lumi - 1) * me.LUMI;
-
-                // timeout from the time we think this lumi happenned
-                var delay_mtime = start_offset_mtime - lumi_offset;
-                var delay_ctime = start_offset_ctime - lumi_offset;
-
-                return {
-                    // 'x': lumi,
-                    // 'y': delay,
-
-                    'lumi': lumi,
-                    'mtime': mtime,
-                    'ctime': ctime,
-
-                    'start_offset_mtime': start_offset_mtime,
-                    'start_offset_ctime': start_offset_ctime,
-                    'delay_mtime': delay_mtime,
-                    'delay_ctime': delay_ctime,
-
-                    'evt_accepted': evt_accepted[index],
-                    'evt_processed': evt_processed[index],
-                    'fsize': fsize[index],
-
-                    'size': 1,
-                    'shape': "circle",
-                }
-            });
-
-            e["values"] = _.sortBy(e["values"], "lumi");
-            if (do_interpolate) {
-                e["values"] = interpolate(_.sortBy(e["values"], "lumi"));
-            }
-            e["global_start"] = date_start;
-
-            return e;
-        });
-
-        // calculate ticks, lazy, inefficient way
-        var x_scale = d3.scale.linear().domain([min_lumi, max_lumi]);
-        var ticks = x_scale.ticks(10);
+        // rate
+        var evt_rate = evt_accepted / me.LUMI;
 
         return {
-            'streams': graph_data,
-            'global_start': date_start,
-            'ticks': ticks,
+            'lumi': lumi,
+            'mtime': mtime,
+            'ctime': ctime,
+
+            'start_offset_mtime': start_offset_mtime,
+            'start_offset_ctime': start_offset_ctime,
+            'delay_mtime': delay_mtime,
+            'delay_ctime': delay_ctime,
+
+            'evt_accepted': evt_accepted,
+            'evt_processed': evt_processed,
+            'evt_rate': evt_rate,
+            'fsize': fsize,
+
+            'size': 1,
+            'shape': "circle",
         };
     };
 
@@ -1114,7 +1017,34 @@ mod.factory('DataUtils', [function () {
         return d.toLocaleString();
     };
 
-    me.make_file_tooltip = function(k, _v1, _v2, o) {
+    me.make_file_tooltip = function (data, stream_key, index) {
+        var p = me.calc_extended(data, stream_key, index);
+        var gs = data.extra.global_start;
+        var key = me.pretty_stream_key(stream_key);
+
+        return ""
+            + "<h3>" + key + "</h3>"
+            + "<span>"
+            + "Lumi number: <strong>" + p.lumi + "</strong><br />"
+            + "Stream: <strong>" + stream_key + "</strong><br />"
+            + "Events accepted / processed: <strong>" + p.evt_accepted + " / " + p.evt_processed + "</strong><br />"
+            + "File size: <strong>" + d3.format('.02f')(parseFloat(p.fsize) / 1024 / 1024) + " mb.</strong><br />"
+            + "Rate: <strong>" + d3.format('.02f')(p.evt_rate) + "</strong><br />"
+            + "<br />"
+            + "File m-time: <strong>" + me.format_timestamp(p.mtime) + "</strong><br />"
+            + "File c-time: <strong>" + me.format_timestamp(p.ctime) + "</strong><br />"
+            + "Time offset from the expected first delivery [start_offset_mtime]: <strong>" + p.start_offset_mtime.toFixed(2)  + " (seconds)</strong><br />"
+            + "Time offset from the expected first delivery [start_offset_ctime]: <strong>" + p.start_offset_ctime.toFixed(2)  + " (seconds)</strong><br />"
+            + "Delay [start_offset_mtime - (lumi_number - 1)*23.3]: <strong>" + p.delay_mtime.toFixed(2) + " (seconds)</strong><br />"
+            + "Delay [start_offset_ctime - (lumi_number - 1)*23.3]: <strong>" + p.delay_ctime.toFixed(2) + " (seconds)</strong><br />"
+            + "<br />"
+            + "Run start (m-time on .runXXXX.global): <strong>" + me.format_timestamp(gs) + "</strong><br />"
+            + "Delivery start (run_start + 23.3): <strong>" + me.format_timestamp(gs + me.LUMI) + "</strong><br />"
+            + "</span>";
+    };
+
+
+    me.make_file_tooltip2 = function(k, _v1, _v2, o) {
         var p = o.point;
         var gs = o.series.global_start;
 
@@ -1143,19 +1073,19 @@ mod.factory('DataUtils', [function () {
 
 mod.factory('GithubService', ['$http', '$q', function ($http, $q) {
     var me = {
-		url_pr: "https://api.github.com/repos/cms-sw/cmssw/pulls/",
-		_pr_cache: {},
-	};
+        url_pr: "https://api.github.com/repos/cms-sw/cmssw/pulls/",
+        _pr_cache: {},
+    };
 
 
-	me.get_pr_info = function (pr_id) {
-		if (me._pr_cache[pr_id] === undefined) {
-			var rq = $http.get(me.url_pr + pr_id);
-			me._pr_cache[pr_id] = rq;
-		}
+    me.get_pr_info = function (pr_id) {
+        if (me._pr_cache[pr_id] === undefined) {
+            var rq = $http.get(me.url_pr + pr_id);
+            me._pr_cache[pr_id] = rq;
+        }
 
-		return me._pr_cache[pr_id];
-	};
+        return me._pr_cache[pr_id];
+    };
 
 
     return me;
