@@ -239,7 +239,7 @@ mod.directive('graphDqmDelaysLumi', function ($window, $timeout, DataUtils) {
                                 callback: function(label, index, labels) {
                                     return ("          " + label).slice(-8);
                                 },
-                                min: 1,
+                                min: 0,
                                 maxTicksLimit: 5,
                             },
                             scaleLabel: {
@@ -383,8 +383,8 @@ mod.directive('graphDqmDelaysLumi', function ($window, $timeout, DataUtils) {
                         var y = v[metric];
 
                         // since the scale is set, they won't be displayed otherwise
-                        if (((metric == "delay_mtime") || (metric == "delay_ctime")) && (y < 1))
-                            y = 1;
+                        if (((metric == "delay_mtime") || (metric == "delay_ctime")) && (y < 0))
+                            y = 0;
 
                         dataset.data.push({ 'x': v.lumi, 'y': y, "index": index });
 
