@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.4.0
+Version: 1.5.0
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -25,7 +25,7 @@ AutoReqProv: no
 Provides:/opt/fff_dqmtools
 Provides:/etc/logrotate.d/fff_dqmtools
 Provides:/etc/init.d/fff_dqmtools
-Requires:python >= 2.6
+Requires:python >= 2.6, python-gevent
 %description
 DQM tools for FFF.
 %prep
