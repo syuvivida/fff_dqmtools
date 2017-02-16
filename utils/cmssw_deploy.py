@@ -424,7 +424,7 @@ def apply_multiple_pr(base_path, args, cmd_prefix=[]):
         log.info("Start *****merging***** new PR: %s", mr)
 
         # prepare args and env
-        argv = cmd_prefix + [sys.executable, script, ]
+        argv = cmd_prefix + ["python", script, ]
         if args.no_build:
             argv += ["--no-build"]
         argv += ["apply-pr", "-p", mr.arg]
@@ -550,6 +550,7 @@ def make_release(sc, args):
         apply_multiple_pr(base_path, args, cmd_prefix=cmd_prefix)
 
     if args.use_tmp:
+        #shell_cmd(["rsync", "-ap", "--no-g", base_path + "/", base_final_path + "/"], guard=True)
         shell_cmd(["rsync", "-ap", base_path + "/", base_final_path + "/"], guard=True)
         shell_cmd(["scram", "b", "ProjectRename"], guard=True, cwd=base_final_path)
 
