@@ -599,10 +599,6 @@ class UserConfig(object):
 
 
 def parse_args():
-    user_config = UserConfig()
-    if "--no-cache" not in sys.argv:
-        user_config.load()
-
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -610,10 +606,8 @@ def parse_args():
     parser.add_argument("command", help="What to do: update,make-release,select-release,apply-pr,apply-multiple-pr,build")
 
     group = parser.add_argument_group('global_info', 'Global information')
-    group.add_argument("--repo", type=str, default=user_config.get_config("git_repository", "git@github.com:cms-sw/cmssw.git"), help="Main git repository.")
-    group.add_argument("--path", type=str, default=user_config.get_config("path", "./"), help="Default path.")
-    group.add_argument("-u", action="store_true", help="Force update/rescan of github and scram, for new releases and stuff.")
-    group.add_argument("--no-cache", action="store_true", help="Don't cache anything.")
+    group.add_argument("--repo", type=str, default="git@github.com:cms-sw/cmssw.git", help="Main git repository.")
+    group.add_argument("--path", type=str, default="./", help="Default path.")
     group.add_argument("--log", type=str, help="Log file to append (does not quiet stdout)")
 
     group = parser.add_argument_group('release_info', 'Release information')
@@ -630,13 +624,6 @@ def parse_args():
     group.add_argument("--no-build", action="store_true", help="Don't call scram b.")
 
     args = parser.parse_args()
-    user_config.update_config("git_repository", args.repo)
-    user_config.update_config("path", args.path)
-
-    # update config_file
-    if not args.no_cache:
-        user_config.save()
-
     return args
 
 if __name__ == "__main__":
@@ -647,18 +634,8 @@ if __name__ == "__main__":
     args = parse_args()
 
     # init or load git/scram cache
-    if args.u or args.no_cache:
-        scram_cache = ScramCache()
-        needs_update = True
-    else:
-        scram_cache = ScramCache.load()
-        t = time.time() - (scram_cache.scan_time or 0)
-        needs_update = (t < 0) or (t >= 60*60)
-
-    if needs_update:
-        scram_cache.update()
-        if not args.no_cache:
-            scram_cache.save()
+    scram_cache = ScramCache()
+    scram_cache.update()
 
     if args.log:
         handler.use_file(args.log)
