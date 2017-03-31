@@ -6,8 +6,6 @@ def prepare_imports():
     sys.path.append('/opt/hltd/python')
     sys.path.append('/opt/hltd/lib')
 
-    sys.path.append('./env/lib/python2.7/site-packages/inotify/')
-
     thp = os.path.dirname(__file__)
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
@@ -398,6 +396,7 @@ if __name__ == "__main__":
 
         "fff_deleter_c2f11_09_01", "fff_deleter_playback_c2f11_13_01",
         "fff_deleter_lookarea_c2f11_19_01", "fff_deleter_minidaq_c2f11_19_01",
+        "fff_deleter_minidaq_cms904",
 
         "fff_simulator",
         "analyze_files", "analyze_files_lookarea_c2f11_19_01", "analyze_releases",

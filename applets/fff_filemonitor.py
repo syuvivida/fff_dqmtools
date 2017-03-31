@@ -195,15 +195,10 @@ class FileMonitor(object):
             self.last_scan = time.time()
             return False
 
-    def run_greenlet(self):
+    def run_inotify(self):
         from gevent import select
         import _inotify as inotify
         import watcher
-
-        # check if web server running, otherwise just restart
-        def is_webserver_running():
-            http_upload([], port=self.port, log=self.log, test_webserver=True)
-        is_webserver_running()
 
         mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
         w = watcher.Watcher()
@@ -236,6 +231,30 @@ class FileMonitor(object):
                 pass
             else:
                 self.log.warning("bad return from select: %s", str(r))
+
+    def run_slow(self):
+        import gevent
+
+        while True:
+            c = self.process_dir()
+            wait_time = 30
+            if c:
+                wait_time = 1
+
+            gevent.sleep(wait_time)
+
+    def run_greenlet(self):
+        # check if web server running
+        # if not, this script  will fail and restart
+        def is_webserver_running():
+            http_upload([], port=self.port, log=self.log, test_webserver=True)
+        is_webserver_running()
+
+        try:
+            self.run_inotify()
+        except ImportError:
+            self.log.warning("Running without inotify, super slow!", exc_info=True)
+            self.run_slow()
 
 @fff_dqmtools.fork_wrapper(__name__)
 @fff_dqmtools.lock_wrapper
