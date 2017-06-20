@@ -356,7 +356,12 @@ mod.directive('graphDqmDelaysLumi', function ($window, $timeout, DataUtils) {
                 // create a dataset for each stream
                 var max_lumi = 0;
                 var datasets = [];
-                _.each(_.keys(data.extra.streams), function (stream_key, stream_index) {
+
+                var stream_keys = _.sortBy(_.keys(data.extra.streams), function (key) {
+                    return DataUtils.pretty_stream_key(key);
+                });
+
+                _.each(stream_keys, function (stream_key, stream_index) {
                     var label = DataUtils.pretty_stream_key(stream_key);
 
                     var dataset = {
