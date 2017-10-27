@@ -410,7 +410,7 @@ if __name__ == "__main__":
         "logfile": "/var/log/fff_dqmtools.log",
         "pidfile": "/var/run/fff_dqmtools.pid",
 
-        "web.db": "/var/lib/fff_dqmtools/db.v3.sqlite3",
+        "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
 
         "deleter.ramdisk": "/fff/ramdisk/",
