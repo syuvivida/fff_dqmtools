@@ -72,11 +72,11 @@ def collect(top, log):
             sort_key, run_rl = parse_file_name(rl)
             if sort_key:
                 fsize, ftime = stat(fp)
-                if fsize != 0:
-                    collected.append(DataEntry(sort_key, fp, fsize, ftime))
 
-                    d = collected_paths[run_rl]
-                    collected_paths[run_rl] = d._replace(fsize=d.fsize + fsize)
+                collected.append(DataEntry(sort_key, fp, fsize, ftime))
+
+                d = collected_paths[run_rl]
+                collected_paths[run_rl] = d._replace(fsize=d.fsize + fsize)
 
     # for now just use simple sort
     collected.sort(key=lambda x: x[0])
@@ -130,10 +130,33 @@ class FileDeleter(object):
         else:
             self.log.warning("Truncating file: %s", f)
 
-            #try:
-            open(f, "w").close()
-            #except:
-            #    self.log.warning("Failed to truncate file: %s", f, exc_info=True)
+            try:
+                open(f, "w").close()
+            except:
+                self.log.warning("Failed to truncate file: %s", f, exc_info=True)
+
+        return f
+
+    def unlink(self, f, json=False):
+        if not f.endswith(".deleted"):
+            return f
+
+        to_delete = [f]
+        if json:
+            jsn = f.split(".")[:-2] + ["jsn"]
+            jsn = ".".join(jsn)
+            to_delete.append(jsn)
+
+        for ftd in to_delete:
+            if self.fake:
+                self.log.warning("Deleting file (fake): %s", ftd)
+            else:
+                self.log.warning("Deleting file: %s", ftd)
+
+                try:
+                    os.unlink(ftd)
+                except:
+                    self.log.warning("Failed to truncate file: %s", f, exc_info=True)
 
         return f
 
@@ -182,39 +205,48 @@ class FileDeleter(object):
         collected, collected_paths = collect(self.top, self.log)
         self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
-        updated = []
+        file_count = len(collected)
 
-        while collected:
-            sort_key, fp, fsize, ftime = collected.pop(0)
+        # stopSizeDelete can still be positive after this
+        # meaning some files have to be deleted, but have not been (only marked)
+        # these files will be deleted next iteration (30s.)
 
-            if stopSizeRename > 0:
+        start_cleanup = time.time()
+        for entry in collected:
+            sort_key, fp, fsize, ftime = entry
+
+            # unlink file and json older than 2 days
+            # this has no effect on thresholds, but affects performance
+            age = start - ftime
+            if fsize == 0 and age >= 2*24*60*60 and fp.endswith(".deleted"):
+                # remove empty and old files
+                # no one uses them anymore...
+                self.unlink(fp, json=True)
+
+            if stopSizeRename <= 0:
+                break
+
+            if fsize > 0:
                 stopSizeRename -= fsize
 
                 if fp.endswith(".deleted") and stopSizeDelete > 0:
                     # delete the files which have been previously marked
                     # and we have disk over-usage
                     stopSizeDelete -= fsize
-                    new_fp = self.delete(fp)
+
+                    self.delete(fp)
                 elif fp.endswith(".deleted"):
-                    new_fp = fp
-                else:
-                    new_fp = self.rename(fp)
-
-                updated.append(DataEntry(sort_key, new_fp, fsize, ftime))
-            else:
-                updated.append(DataEntry(sort_key, fp, fsize, ftime))
-                updated += collected
-                break
-
-            # stopSizeDelete can still be positive after this
-            # meaning some files have to be deleted, but have not been (only marked)
-            # these files will be deleted next iteration (30s.)
+                    # already renamed, do nothing
+                    pass
+                elif not fp.endswith(".deleted"):
+                    # rename them, as a warning for the next iteration
+                    self.rename(fp)
 
         if self.thresholds.has_key("delete_folders") and self.thresholds["delete_folders"]:
             for entry in collected_paths:
 
                 # check if empty - we don't non-empty dirs
-                # empty in a 'no stream files left to truncate' sense
+                # empty as in a 'no stream files left to truncate' sense
                 if entry.fsize != 0: continue
 
                 # check if older than 7 days
@@ -223,44 +255,10 @@ class FileDeleter(object):
 
                 self.delete_folder(entry.path)
 
-        return updated
+        self.log.info("Done cleanup, took %.03fs.", time.time() - start_cleanup)
+        return file_count
 
-
-    def make_content_report(self, collected):
-        streams = {}
-
-        for sort_key, fp, fsize, ftime in collected:
-            run, run_f, ls, leftover = sort_key
-            key = (run, leftover.strip("_"), )
-
-            entry = "%d %d %f:" % (
-                ls,
-                fsize,
-                ftime
-            )
-
-            if fp.endswith(".deleted"):
-                entry += " deleted"
-
-            if not streams.has_key(key):
-                streams[key] = []
-            streams[key].append(entry)
-
-        keys = list(streams.keys())
-        keys.sort()
-        runs = OrderedDict({})
-
-        for key in keys:
-            run, stream = key
-            stream_files = streams[key]
-
-            if not runs.has_key(run):
-                runs[run] = {}
-            runs[run][stream] = stream_files
-
-        return runs
-
-    def make_report(self, files):
+    def make_report(self, file_count):
         if not os.path.isdir(self.report_directory):
             self.log.warning("Directory %s does not exists. Reports disabled.", self.report_directory)
             return
@@ -274,11 +272,6 @@ class FileDeleter(object):
         else:
             used, free, total = -1, -1, -1
 
-        if files:
-            collected = self.make_content_report(files)
-        else:
-            collected = None
-
         doc = {
             "sequence": self.sequence,
             "disk_used": used,
@@ -287,7 +280,7 @@ class FileDeleter(object):
             "hostname": self.hostname,
             "tag": self.app_tag,
             "extra": {
-                "files_seen": collected,
+                "file_count": file_count,
                 "thresholds": self.thresholds,
             },
             "pid": os.getpid(),
