@@ -491,8 +491,14 @@ def make_release(sc, args):
         components = [args.label, "_",] + components
 
     pull_requests = get_list_of_pr(args.pull_requests)
-    for m in pull_requests:
-        components.append("_" + m.label)
+    if len(pull_requests) <= 5:
+        for m in pull_requests:
+            components.append("_" + m.label)
+    else:
+        for m in pull_requests[:3]:
+            components.append("_" + m.label)
+
+        components.append("___" + pull_requests[-1].label)
 
     name = "".join(components)
     base_cwd = args.path
