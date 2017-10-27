@@ -106,7 +106,7 @@ class Analyzer(object):
             time.sleep(105)
 
 @fff_cluster.host_wrapper(allow = ["fu-c2f11-15-01"])
-@fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
+@fff_dqmtools.fork_wrapper(__name__, uid="dqmdev", gid="dqmdev")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, logger, **kwargs):
     global log

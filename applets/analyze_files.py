@@ -14,7 +14,6 @@ from collections import OrderedDict, namedtuple
 
 import fff_dqmtools
 import fff_filemonitor
-import fff_deleter
 import fff_cluster
 
 log = logging.getLogger(__name__)

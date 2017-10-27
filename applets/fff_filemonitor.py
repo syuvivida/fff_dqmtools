@@ -147,11 +147,8 @@ class FileMonitor(object):
                 # (i am actually serious, it is used for synchronization)
                 yield None
 
-                try:
-                    body = atomic_read_delete(fp)
-                    yield json.loads(body)
-                except:
-                    self.log.warning("Couldn't read or deserialize document: %s", fp)
+                body = atomic_read_delete(fp)
+                yield json.loads(body)
             except:
                 self.log.warning("Failure to read the document: %s", fp, exc_info=True)
                 #raise Exception("Please restart.")
