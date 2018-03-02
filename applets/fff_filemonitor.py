@@ -65,14 +65,19 @@ def atomic_create_write(fp, body, mode=0600):
     prefix = os.path.basename(fp)
 
     f = tempfile.NamedTemporaryFile(prefix=prefix + ".", suffix=".tmp", dir=dir, delete=False)
-    tmp_fp = f.name
-    f.write(body)
-    f.close()
 
-    if mode != 0600:
-        os.chmod(tmp_fp, mode)
+    try:
+        tmp_fp = f.name
+        f.write(body)
+        f.close()
 
-    os.rename(tmp_fp, fp)
+        if mode != 0600:
+            os.chmod(tmp_fp, mode)
+
+        os.rename(tmp_fp, fp)
+    except:
+        os.unlink(tmp_fp)
+        raise
 
 def http_upload(lst_gen, port, log=None, test_webserver=False):
     url = "http://127.0.0.1:%d/_upload/" % port
