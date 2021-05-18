@@ -310,10 +310,18 @@ class SimulatorRun(object):
 
     def create_global_file(self):
         # Creates the hidden .run*.global run file on the ramdisk.
+        # run_unique_key value - https://github.com/cms-sw/cmssw/pull/33644#issuecomment-840511487
+        # like self.config["run_unique_key"] = '4e94e771-add6-41be-8683-c5f6a7a9ed1f'
         file_name = '.run%d.global' % self.config["run"]
         full_name = os.path.join(self.config["ramdisk"], file_name)
 
-        atomic_write(full_name, 'run_key = %s' % self.config["run_key"])
+        run_unique_key = '4e94e771-add6-41be-8683-c5f6a7a9ed1f'
+        if "run_unique_key" in self.config : run_unique_key = self.config["run_unique_key"]
+
+        body  = 'run_key = %s\n' % self.config["run_key"]
+        body += 'run_unique_key = %s\n' % run_unique_key
+
+        atomic_write(full_name, body)
         log.info('Created hidden .global run file %s' % full_name)
 
     def create_eor(self):
