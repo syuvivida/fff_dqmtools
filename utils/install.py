@@ -35,8 +35,7 @@ def install_local(rpm):
 def install_remote(spath, host):
     print "*"*80
     print "* Installing on:", host
-    for a in range(7):
-        print "*"
+    print "*\n"*7
     print "*"*80
 
     subprocess.call(["ssh", host, "python", spath, "--local"])
@@ -47,6 +46,9 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(spath))
 
     rpms = glob.glob("../tmp/RPMBUILD/RPMS/x86_64/*.rpm")
+    if not len(rpms) :
+      rpms = glob.glob("*.rpm")
+
     rpm = None
     if len(rpms) == 1:
         rpm = rpms[0]

@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.6.0
+Version: 1.6.2
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -34,6 +34,7 @@ DQM tools for FFF.
 
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib
+mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/inotify
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets
 
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/misc
@@ -47,6 +48,7 @@ mkdir -p \$RPM_BUILD_ROOT/var/lib/fff_dqmtools
 install -m 755 $SCRIPTDIR/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 install -m 644 $SCRIPTDIR/lib/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
 install -m 644 $SCRIPTDIR/lib/*.egg -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
+install -m 644 $SCRIPTDIR/lib/inotify/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/inotify
 install -m 644 $SCRIPTDIR/applets/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets/
 
 cp -r $SCRIPTDIR/misc -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
@@ -61,6 +63,7 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 /opt/fff_dqmtools/*.py
 /opt/fff_dqmtools/lib/*.py
 /opt/fff_dqmtools/lib/*.egg
+/opt/fff_dqmtools/lib/inotify/*.py
 /opt/fff_dqmtools/applets/*.py
 
 /opt/fff_dqmtools/misc
