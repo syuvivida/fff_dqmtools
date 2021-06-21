@@ -197,7 +197,42 @@ class FileMonitor(object):
             self.last_scan = time.time()
             return False
 
+    # watch the directory using inotify 0.2.10
     def run_inotify(self):
+        from gevent import select
+        import inotify
+        from inotify import adapters
+        from inotify import constants
+
+        mask = inotify.constants.IN_CLOSE_WRITE | inotify.constants.IN_MOVED_TO
+        watcher = inotify.adapters.Inotify()
+        watcher.add_watch(self.path, mask)
+        fd = watcher._Inotify__inotify_fd
+
+        while True:
+            c = self.process_dir()
+
+            # if process_dir return true, we restart this loop
+            # but we still need to flush watcher (or it will go out of buf)
+            wait_time = 30
+            if c:
+                wait_time = 1
+
+            r = select.select([fd], [], [], wait_time)
+
+            if len(r[0]) == 0:
+                # timeout
+                pass
+            elif r[0][0] == fd:
+                # clear the events
+                for event in watcher.event_gen(0.01, yield_nones=False):
+                    pass
+                pass
+            else:
+                self.log.warning("bad return from select: %s", str(r))
+
+    # old version of "watcher" and "inotify" python modules is used here
+    def run_inotify_old(self):
         from gevent import select
         import _inotify as inotify
         import watcher
