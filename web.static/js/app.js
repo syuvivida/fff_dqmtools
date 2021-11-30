@@ -34,9 +34,26 @@ dqmApp.controller('NavigationCtrl', [
         var proto = tokens[1];
         var path = "/sync";
         if (proto.slice(0,4) === "http") {
-            path = "/sync_proxy"
+            path = "/sync_proxy";
         }
 
+        /// return for web outside P5 (always via cmsweb-testbed or cmsweb frontier redirection)
+        var local_token = tokens[2];
+        var local = window.location.href;
+        if( local_token.includes("fu-c2f11-11-01") ){
+          if( local.includes("cmsweb-testbed") ){
+            return "https://cmsweb-testbed.cern.ch/dqm/dqm-square-origin/sync_proxy";
+          }
+          if( local.includes("cmsweb") ){
+            return "https://cmsweb-testbed.cern.ch/dqm/dqm-square-origin/sync_proxy";
+          }
+        }
+        if( local.includes("cmsweb-testbed") ) 
+          return "https://cmsweb-testbed.cern.ch/dqm/dqm-square-origin/redirect?path=" + tokens[2] + "&port=" + tokens[3];
+        if( local.includes("cmsweb") ) 
+          return "https://cmsweb.cern.ch/dqm/dqm-square-origin/redirect?path=" + tokens[2] + "&port=" + tokens[3];
+
+        /// defaul return
         return proto + "://" + tokens[2] + ":" + tokens[3] + path;
     };
 
@@ -142,6 +159,11 @@ dqmApp.controller('NavigationCtrl', [
     //});
 
     var p = $http.get("/info");
+
+    /// if external request via cmsweb to list of dqm machines than add /dqm/dqm-square-origin/ prefix
+    var local = window.location.href;
+    if( local.includes("cmsweb") ) p = $http.get("/dqm/dqm-square-origin/info");
+
     p.then(function (body) {
         me.cluster_info = body.data;
 

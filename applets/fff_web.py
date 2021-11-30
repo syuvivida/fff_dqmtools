@@ -358,10 +358,12 @@ class SyncSocket(WebSocket):
         return output_messages
 
 class WebServer(bottle.Bottle):
-    def __init__(self, db=None):
+    def __init__(self, db=None, secret="changeme", secret_name="selenium-secret"):
         bottle.Bottle.__init__(self)
 
         self.db = db
+        self.secret = secret
+        self.secret_name = secret_name
         self.setup_routes()
 
     def setup_routes(self):
@@ -369,6 +371,10 @@ class WebServer(bottle.Bottle):
 
         static_path = os.path.dirname(__file__)
         static_path = os.path.join(static_path, "../web.static/")
+
+        # from wsgiproxy.app import WSGIProxyApp
+        # proxy_app = WSGIProxyApp("https://fu-c2f11-15-02.cms:9215/sync_proxy")
+        # root.mount(proxy_app,"/dqm/dqm-square-origin/redirect/fu-c2f11-15-02.cms:9215/sync")
 
         # the decorator to enable cross domain communication
         # for http-proxy stuff
@@ -378,9 +384,10 @@ class WebServer(bottle.Bottle):
 
             def _enable_cors(*args, **kwargs):
                 # set CORS headers
-                response.headers['Access-Control-Allow-Origin'] = '*'
+                response.headers['Access-Control-Allow-Origin']  = '*'
                 response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
                 response.headers['Access-Control-Allow-Headers'] = 'Origin, Accept, Content-Type, X-Requested-With, X-CSRF-Token'
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
 
                 if bottle.request.method != 'OPTIONS':
                     # actual request; reply with the actual response
@@ -388,15 +395,50 @@ class WebServer(bottle.Bottle):
 
             return _enable_cors
 
+        def check_secret( secret_value ):
+          return secret_value == self.secret
+
+        def check_auth(fn):
+          def check_auth_(**kwargs):
+            
+            host = bottle.request.get_header('host')
+            log.debug("check_auth(): host=%s", host)
+            log.debug( bottle.request.url )
+            log.debug( str(bottle.request.auth) )
+      	    log.debug( str(bottle.request.remote_route) )
+      	    log.debug( str(bottle.request.remote_addr) )
+      	    log.debug( str(bottle.request.json) )
+      	    log.debug( str(bottle.request.path ) )
+            log.debug( str(bottle.request.cookies.items() ) )
+
+            if "cmsweb" in bottle.request.url : 
+              secret = bottle.request.get_cookie( self.secret_name )
+              if not check_secret( secret ) :
+                bottle.redirect("https://cmsweb.cern.ch/")
+              else : return fn(**kwargs)
+            else : return fn(**kwargs)
+
+          return check_auth_
+
+        @app.route('/login')
+        def login():
+          return "<p>Welcome! You are not logged in.</p>"
+
         @app.route('/static/<filepath:path>')
+        @check_auth
         def static(filepath):
             return bottle.static_file(filepath, root=static_path)
 
         @app.route('/')
+        @check_auth
         def index():
+            if "cmsweb" in bottle.request.url :
+                bottle.redirect("/dqm/dqm-square-origin/static/index.html")
+                return
             bottle.redirect("/static/index.html")
 
         @app.get("/info")
+        @check_auth
         def info():
             c = self.db.conn.cursor()
             c.execute("PRAGMA page_size")
@@ -413,7 +455,9 @@ class WebServer(bottle.Bottle):
             }
 
         @app.post("/_upload/")
+#        @check_auth
         def upload():
+            if "cmsweb" in bottle.request.url : return
             from bottle import request
 
             j = json.loads(request.body.read())
@@ -458,7 +502,9 @@ class WebServer(bottle.Bottle):
         ###         return body
 
         @app.route("/utils/kill_proc/<id>", method=['POST'])
+        @check_auth
         def kill_proc(id):
+            if "cmsweb" in bottle.request.url : return
             from bottle import request
             data = json.loads(request.body.read())
 
@@ -491,7 +537,9 @@ class WebServer(bottle.Bottle):
             return body
 
         @app.route("/utils/drop_ids", method=['POST'])
+        @check_auth
         def drop_ids():
+            if "cmsweb" in bottle.request.url : return
             from bottle import request
 
             data = json.loads(request.body.read())
@@ -546,6 +594,7 @@ class WebServer(bottle.Bottle):
                     yield part
 
         @app.route("/utils/show_log/<id>", method=['GET', 'POST'])
+        @check_auth
         def show_log(id):
             from bottle import response
 
@@ -574,6 +623,7 @@ class WebServer(bottle.Bottle):
 
         @app.route("/utils/control_command/<name>/<cmd>", method=['OPTIONS', 'POST'])
         @enable_cors
+        #@check_auth
         def control_command(name, cmd):
             from bottle import response
 
@@ -602,6 +652,7 @@ class WebServer(bottle.Bottle):
             sock.close()
 
         @app.route("/sync_proxy", method=["OPTIONS", "POST"])
+        #@check_auth
         @enable_cors
         def sync_proxy():
             from bottle import request, response
@@ -610,14 +661,44 @@ class WebServer(bottle.Bottle):
             lst = data.get("messages", [])
 
             output = SyncSocket.proxy_mode(lst, peer_address=request.remote_addr)
+            log.info( str(request.remote_addr) )
 
             response.content_type = 'application/json'
             return json.dumps({
                 'messages': output
             })
 
+        ### API for DQM^2 Mirror
+        @app.route("/redirect", method=["OPTIONS", "POST"])
+        #@check_auth
+        @enable_cors
+        def redirect():
+            from bottle import request, response
+            import requests
+            url = 'http://' + request.query.path + ':' + request.query.port  + '/sync_proxy'
+            r = requests.post(url, data=request.body, headers = request.headers)
+            return r.content
 
-def run_web_greenlet(db, host="0.0.0.0", port=9215, **kwargs):
+        ### API for DQM^2 Control Room
+        @app.route("/cr/exe")
+        @check_auth
+        def cr_api():
+          log.debug( bottle.request.urlparts )
+          what = bottle.request.query.what
+          if what == "get_dqm_machines" :
+            nodes = fff_cluster.get_node()
+            nodes = nodes["_all"]
+            type = bottle.request.query.type
+            for key, lst in clusters.items():
+              if type in key: return lst
+            return []
+
+          if what == "get_playback_config" :
+            
+
+          
+
+def run_web_greenlet(db, host="0.0.0.0", port=9215, opts = {}, **kwargs):
     listener = (host, port, )
 
     from ws4py.server.geventserver import WSGIServer, WebSocketWSGIHandler
@@ -626,7 +707,7 @@ def run_web_greenlet(db, host="0.0.0.0", port=9215, **kwargs):
 
     SyncSocket.db = db
 
-    static_app = WebServer(db = db)
+    static_app = WebServer(db, opts)
     static_app.mount('/sync', WebSocketWSGIApplication(handler_cls = SyncSocket))
 
     server = WSGIServer(listener, static_app)
@@ -646,9 +727,10 @@ def __run__(opts, **kwargs):
     log = kwargs["logger"]
 
     db_string = opts["web.db"]
-    port = opts["web.port"]
+    port      = opts["web.port"]
+    secret    = opts["web.secret"]
 
     db = Database(db = db_string)
 
-    fwt = gevent.spawn(run_web_greenlet, db, port = port)
+    fwt = gevent.spawn(run_web_greenlet, db, port = port, opts)
     gevent.joinall([fwt], raise_error=True)

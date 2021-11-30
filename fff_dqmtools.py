@@ -412,6 +412,8 @@ if __name__ == "__main__":
 
         "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
+        "web.secret": "changeme",
+        "web.secret_name": "selenium-secret",
 
         "deleter.ramdisk": "/fff/ramdisk/",
         "deleter.tag": "fff_deleter",
@@ -426,6 +428,8 @@ if __name__ == "__main__":
 
         "web.port": int,
         "web.db": str,
+        "web.secret": str,
+        "web.secret_name": str,
 
         "deleter.ramdisk": str,
         "deleter.tag": str,
