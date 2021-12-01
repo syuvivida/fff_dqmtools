@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import json
 import re
 import sqlite3
@@ -358,12 +358,13 @@ class SyncSocket(WebSocket):
         return output_messages
 
 class WebServer(bottle.Bottle):
-    def __init__(self, db=None, secret="changeme", secret_name="selenium-secret"):
+    def __init__(self, db=None, opts={}):
         bottle.Bottle.__init__(self)
 
         self.db = db
-        self.secret = secret
-        self.secret_name = secret_name
+        self.opts = opts
+        self.secret = opts["web.secret"]
+        self.secret_name = opts["web.secret_name"]
         self.setup_routes()
 
     def setup_routes(self):
@@ -684,19 +685,69 @@ class WebServer(bottle.Bottle):
         @check_auth
         def cr_api():
           log.debug( bottle.request.urlparts )
-          what = bottle.request.query.what
+          what = bottle.request.query.get('what')
           if what == "get_dqm_machines" :
             nodes = fff_cluster.get_node()
             nodes = nodes["_all"]
-            type = bottle.request.query.type
-            for key, lst in clusters.items():
-              if type in key: return lst
-            return []
+            if bottle.request.query.get('kind'):
+              type = bottle.request.query.get('kind')
+              for key, lst in nodes.items():
+                if type in key: return json.dumps(lst)
+              return json.dumps([])
+            return json.dumps( nodes )
 
-          if what == "get_playback_config" :
-            
+          if what == "get_hltd_versions" : 
+            answer = fff_cluster.get_hltd_version()
+            return json.dumps( answer )
 
-          
+          if what == "get_simulator_config" :
+            host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+            answer = fff_cluster.get_simulator_config( self.opts, host )
+            return json.dumps( answer )
+
+          if what = "get_simulator_runs" :
+            host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+            answer = fff_cluster.get_simulator_runs( self.opts, host )
+            return json.dumps( answer )
+
+          if what == "restart_hltd":
+            host = bottle.request.query.get('host', default=None)
+            answer = "Specify host to restart HLTD"
+            if host : answer = fff_cluster.restart_hltd( host )
+            return answer
+
+          if what == "restart_fff":
+            host = bottle.request.query.get('host', default=None)
+            answer = "Specify host to restart FFF"
+            if host : answer = fff_cluster.restart_fff( host )
+            return answer
+
+          if what == "get_hltd_logs":
+            host = bottle.request.query.get('host', default=None)
+            answer = ["Specify host HLTD", "Specify host HLTD"]
+            if host : 
+              answer_hltd = fff_cluster.get_txt_file( host, self.opts["hltd_logfile"], 30 )
+              answer_anelastic = fff_cluster.get_txt_file( host, self.opts["anelastic_logfile"], 30 )
+              answer = [answer_hltd, answer_anelastic]
+            return json.dumps(answer)
+
+          if what == "get_fff_logs":
+            host = bottle.request.query.get('host', default=None)
+            answer = "Specify host FFF"
+            if host : answer = fff_cluster.get_txt_file( host, self.opts["logfile"], 30 )
+            return json.dumps( [answer] )
+
+          if what == "start_playback_run" :
+            run_number   = bottle.request.query.get("run_number", default=None)
+            run_class    = bottle.request.query.get("run_class", default=None)
+            number_of_ls = bottle.request.query.get("LS_number", default=None)
+
+            cfg = fff_cluster.get_simulator_config( self.opts, host )
+            cfg = fff_cluster.update_config(cfg, "run_number", run_number)
+            cfg = fff_cluster.update_config(cfg, "run_class", run_class)
+            cfg = fff_cluster.update_config(cfg, "number_of_ls", number_of_ls)
+
+            fff_cluster.write_config( self.opts, host, cfg )
 
 def run_web_greenlet(db, host="0.0.0.0", port=9215, opts = {}, **kwargs):
     listener = (host, port, )
@@ -728,9 +779,8 @@ def __run__(opts, **kwargs):
 
     db_string = opts["web.db"]
     port      = opts["web.port"]
-    secret    = opts["web.secret"]
 
     db = Database(db = db_string)
 
-    fwt = gevent.spawn(run_web_greenlet, db, port = port, opts)
+    fwt = gevent.spawn(run_web_greenlet, db, port = port, opts = opts)
     gevent.joinall([fwt], raise_error=True)

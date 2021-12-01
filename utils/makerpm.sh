@@ -11,8 +11,8 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.6.2
-Release: 1
+Version: 1.6.3
+Release: 5
 Summary: DQM tools for FFF.
 License: gpl
 Group: DQM

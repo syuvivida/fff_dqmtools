@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 import sys, os
 def prepare_imports():
@@ -409,6 +409,9 @@ if __name__ == "__main__":
 
         "logfile": "/var/log/fff_dqmtools.log",
         "pidfile": "/var/run/fff_dqmtools.pid",
+
+        "hltd_logfile": "/var/log/hltd/hltd.log",
+        "anelastic_logfile": "/var/log/hltd/anelastic.log",
 
         "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
