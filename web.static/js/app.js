@@ -40,12 +40,12 @@ dqmApp.controller('NavigationCtrl', [
         /// return for web outside P5 (always via cmsweb-testbed or cmsweb frontier redirection)
         var local_token = tokens[2];
         var local = window.location.href;
-        if( local_token.includes("fu-c2f11-11-01") ){
+        if( local_token.includes("bu-c2f11-13-01") ){ // hard code check of entry point
           if( local.includes("cmsweb-testbed") ){
             return "https://cmsweb-testbed.cern.ch/dqm/dqm-square-origin/sync_proxy";
           }
           if( local.includes("cmsweb") ){
-            return "https://cmsweb-testbed.cern.ch/dqm/dqm-square-origin/sync_proxy";
+            return "https://cmsweb.cern.ch/dqm/dqm-square-origin/sync_proxy";
           }
         }
         if( local.includes("cmsweb-testbed") ) 

@@ -6,6 +6,7 @@ import socket
 import subprocess
 import os
 from threading import Timer
+import json
 
 clusters = {
   'production_c2f11': ["bu-c2f11-09-01.cms", "fu-c2f11-11-01.cms", "fu-c2f11-11-02.cms", "fu-c2f11-11-03.cms", "fu-c2f11-11-04.cms", ],
@@ -13,75 +14,92 @@ clusters = {
   'lookarea_c2f11': ["bu-c2f11-19-01.cms", ]
 }
 
-def popen_timeout(seconds=10, cmd):
+def popen_timeout(cmd, seconds=10):
   kill = lambda process: process.kill()
   p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   timer = Timer(seconds, kill, [p])
-  answer = " ... "
+  answer, stderr = " ... ",  " ... " 
   try:
     timer.start()
     answer, stderr = p.communicate()
   except Exception as error_log:
     answer = error_log
+  if p.returncode : answer = stderr
   timer.cancel()
   return answer
 
-def get_hltd_version(host):
-  return popen_timeout(5, ["ssh " + host + " \"rpm -qf /opt/hltd\""])
+def get_rpm_version(host, soft_path):
+  if not host : return "host argument not defined"
+  if not soft_path : return "soft_path argument not defined"
+  return popen_timeout(["ssh " + host + " \"rpm -qf " + soft_path + "\""], 5)
   
-def get_hltd_version_all():
+def get_rpm_version_all(soft_path):
   answer = {}
   for key, lst in clusters.items():
-    subanswer = []
-    if host in lst:
-      hltd_version = get_hltd_version( host )
-      subanswer += [ [ host, hltd_version ] ]
+    subanswer = {}
+    for host in lst:
+      version = get_rpm_version( host, soft_path )
+      subanswer[ host ] = version
     answer[key] = subanswer
 
-  return subanswer
+  return answer
 
-def get_simulator_config(opts, simulator_host):
-  if not simulator_host : return ""
-  path = self.opts["simulator.conf"]
-  cfg = popen_timeout(5, ["ssh " + simulator_host + " \"cat " + path + "\""])
+def get_simulator_config(opts, this_host, simulator_host):
+  if not simulator_host : return "host argument not defined"
+  path = opts["simulator.conf"]
+  cfg = None
+  if this_host == simulator_host : cfg = popen_timeout(["cat " + path], 5)
+  else                           : cfg = popen_timeout(["ssh " + simulator_host + " \"cat " + path + "\""], 5)
   return cfg
 
 def update_config(cfg, key, value):
   if not key : return cfg
   if not key in cfg : return cfg
+  if not value : return cfg
   cfg[ key ] = value
   return cfg
 
-def write_config(opts, simulator_host, cfg): # FIXME
-  if not simulator_host : return
-  answer = popen_timeout(5, ["ssh " + simulator_host + " \"cat " + path + "\""])
+def write_config(opts, cfg): # only locally
+  path = "/tmp/" + os.path.basename( opts["simulator.conf"] )
+  f = open(path, "w")
+  json.dump(cfg, f, sort_keys=True, indent=2)
+  f.close()
+  answer = popen_timeout([ "sudo cp " + path + " " + opts["simulator.conf"] ], 5)
   return answer
 
-def get_simulator_runs(opts, simulator_host):
+def get_simulator_runs(opts, this_host, simulator_host):
   if not simulator_host : return []
-  cfg_json = get_simulator_config(opts, simulator_host)
+  cfg_json = get_simulator_config(opts, this_host, simulator_host)
   cfg = json.loads( cfg_json )
   path = os.path.dirname( cfg["source"] )
-  runs_raw = popen_timeout(5, ["ssh " + simulator_host + " \"ls -1d " + path + "/run*\""])
+  runs_raw = None
+  if this_host == simulator_host : runs_raw = popen_timeout(["ls -1d " + path + "/run*"], 5)
+  else                           : runs_raw = popen_timeout(["ssh " + simulator_host + " \"ls -1d " + path + "/run*\""], 5)
   runs = []
   for run in runs_raw.split("\n"):
     runs += [ os.path.basename( run ) ]
   return runs
 
 def restart_hltd(host):
-  return popen_timeout(15, ["ssh " + host + " \"sudo -i /sbin/service hltd stop; sudo -i /sbin/service hltd start\""])
+  if not host : return "host argument not defined"
+  answer = popen_timeout(["ssh " + host + " \"sudo -i /sbin/service hltd stop; sudo -i /sbin/service hltd start\""], 15)
+  if not answer : return "Ok"
+  return answer
 
 def restart_fff(host):
-  return popen_timeout(15, ["ssh " + host + " \"sudo systemctl restart fff_dqmtools.service\""])
+  if not host : return "host argument not defined"
+  answer = popen_timeout(["ssh " + host + " \"sudo systemctl restart fff_dqmtools.service\""], 15)
+  if not answer : return "Ok"
+  return answer
 
 def get_txt_file(host, path, timeout=30):
-  if not path : return ""
-  return popen_timeout(timeout, ["ssh " + host + " \"cat " + path + "\""])
+  if not host : return "host argument not defined"
+  if not path : return "path argument not defined"
+  return popen_timeout(["ssh " + host + " \"cat " + path + "\""], timeout)
 
 def get_host():
   host = socket.gethostname()
   host = host.lower()
-
   return host
 
 def get_node():

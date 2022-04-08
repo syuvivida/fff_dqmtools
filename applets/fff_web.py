@@ -15,6 +15,7 @@ import fff_filemonitor
 import bottle
 import zlib
 import itertools
+import requests
 
 log = logging.getLogger(__name__)
 
@@ -403,7 +404,7 @@ class WebServer(bottle.Bottle):
           def check_auth_(**kwargs):
             
             host = bottle.request.get_header('host')
-            log.debug("check_auth(): host=%s", host)
+            log.info("check_auth(): host=%s", host)
             log.debug( bottle.request.url )
             log.debug( str(bottle.request.auth) )
       	    log.debug( str(bottle.request.remote_route) )
@@ -415,6 +416,7 @@ class WebServer(bottle.Bottle):
             if "cmsweb" in bottle.request.url : 
               secret = bottle.request.get_cookie( self.secret_name )
               if not check_secret( secret ) :
+                log.info("answer BAD host=%s", host)
                 bottle.redirect("https://cmsweb.cern.ch/")
               else : return fn(**kwargs)
             else : return fn(**kwargs)
@@ -449,14 +451,14 @@ class WebServer(bottle.Bottle):
             c.close()
 
             return {
-                'hostname': socket.gethostname(),
+                'hostname': fff_cluster.get_host(),
                 'timestamp': time.time(),
                 'cluster': fff_cluster.get_node(),
                 'db_size': ps*pc,
             }
 
         @app.post("/_upload/")
-#        @check_auth
+        # @check_auth
         def upload():
             if "cmsweb" in bottle.request.url : return
             from bottle import request
@@ -623,8 +625,8 @@ class WebServer(bottle.Bottle):
             return chain
 
         @app.route("/utils/control_command/<name>/<cmd>", method=['OPTIONS', 'POST'])
+        @check_auth
         @enable_cors
-        #@check_auth
         def control_command(name, cmd):
             from bottle import response
 
@@ -675,79 +677,112 @@ class WebServer(bottle.Bottle):
         @enable_cors
         def redirect():
             from bottle import request, response
-            import requests
             url = 'http://' + request.query.path + ':' + request.query.port  + '/sync_proxy'
-            r = requests.post(url, data=request.body, headers = request.headers)
+            r = requests.post(url, data=request.body, headers = request.headers, timeout=5)
             return r.content
 
         ### API for DQM^2 Control Room
         @app.route("/cr/exe")
         @check_auth
         def cr_api():
-          log.debug( bottle.request.urlparts )
+          log.info( bottle.request.urlparts )
+          log.info( bottle.request.urlparts.query )
           what = bottle.request.query.get('what')
-          if what == "get_dqm_machines" :
-            nodes = fff_cluster.get_node()
-            nodes = nodes["_all"]
-            if bottle.request.query.get('kind'):
-              type = bottle.request.query.get('kind')
-              for key, lst in nodes.items():
-                if type in key: return json.dumps(lst)
-              return json.dumps([])
-            return json.dumps( nodes )
 
-          if what == "get_hltd_versions" : 
-            answer = fff_cluster.get_hltd_version()
-            return json.dumps( answer )
+          try:
+            if what == "get_dqm_machines" :
+                nodes = fff_cluster.get_node()
+                nodes = nodes["_all"]
+                if bottle.request.query.get('kind'):
+                  type = bottle.request.query.get('kind') # answer
+                  for key, lst in nodes.items():
+                    if type in key: return json.dumps(lst)
+                  return json.dumps([])
+                return json.dumps( nodes )
 
-          if what == "get_simulator_config" :
-            host = bottle.request.query.get('host', default="bu-c2f11-13-01")
-            answer = fff_cluster.get_simulator_config( self.opts, host )
-            return json.dumps( answer )
+            if what == "get_hltd_versions" : 
+              answer = fff_cluster.get_rpm_version_all("/opt/hltd")
+              return json.dumps( answer )
 
-          if what = "get_simulator_runs" :
-            host = bottle.request.query.get('host', default="bu-c2f11-13-01")
-            answer = fff_cluster.get_simulator_runs( self.opts, host )
-            return json.dumps( answer )
+            if what == "get_fff_versions" : 
+              answer = fff_cluster.get_rpm_version_all("/opt/fff_dqmtools")
+              return json.dumps( answer )
 
-          if what == "restart_hltd":
-            host = bottle.request.query.get('host', default=None)
-            answer = "Specify host to restart HLTD"
-            if host : answer = fff_cluster.restart_hltd( host )
-            return answer
+            if what == "get_simulator_config" :
+              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              answer = fff_cluster.get_simulator_config( self.opts, fff_cluster.get_host(), host )
+              return json.dumps( answer )
 
-          if what == "restart_fff":
-            host = bottle.request.query.get('host', default=None)
-            answer = "Specify host to restart FFF"
-            if host : answer = fff_cluster.restart_fff( host )
-            return answer
+            if what == "get_simulator_runs" :
+              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              answer = fff_cluster.get_simulator_runs( self.opts, fff_cluster.get_host(), host )
+              return json.dumps( answer )
 
-          if what == "get_hltd_logs":
-            host = bottle.request.query.get('host', default=None)
-            answer = ["Specify host HLTD", "Specify host HLTD"]
-            if host : 
-              answer_hltd = fff_cluster.get_txt_file( host, self.opts["hltd_logfile"], 30 )
-              answer_anelastic = fff_cluster.get_txt_file( host, self.opts["anelastic_logfile"], 30 )
-              answer = [answer_hltd, answer_anelastic]
-            return json.dumps(answer)
+            if what == "restart_hltd":
+              host = bottle.request.query.get('host', default=None)
+              answer = "Specify host to restart HLTD"
+              if host : answer = fff_cluster.restart_hltd( host )
+              return answer
 
-          if what == "get_fff_logs":
-            host = bottle.request.query.get('host', default=None)
-            answer = "Specify host FFF"
-            if host : answer = fff_cluster.get_txt_file( host, self.opts["logfile"], 30 )
-            return json.dumps( [answer] )
+            if what == "restart_fff":
+              host = bottle.request.query.get('host', default=None)
+              answer = "Specify host to restart FFF"
+              if host : answer = fff_cluster.restart_fff( host )
+              return answer
 
-          if what == "start_playback_run" :
-            run_number   = bottle.request.query.get("run_number", default=None)
-            run_class    = bottle.request.query.get("run_class", default=None)
-            number_of_ls = bottle.request.query.get("LS_number", default=None)
+            if what == "get_hltd_logs":
+              host = bottle.request.query.get('host', default=None)
+              answer = ["Specify host HLTD", "Specify host HLTD"]
+              if host : 
+                answer_hltd = fff_cluster.get_txt_file( host, self.opts["hltd_logfile"], 30 )
+                answer_anelastic = fff_cluster.get_txt_file( host, self.opts["anelastic_logfile"], 30 )
+                
+                answer = [answer_hltd, answer_anelastic]
+              return json.dumps(answer)
 
-            cfg = fff_cluster.get_simulator_config( self.opts, host )
-            cfg = fff_cluster.update_config(cfg, "run_number", run_number)
-            cfg = fff_cluster.update_config(cfg, "run_class", run_class)
-            cfg = fff_cluster.update_config(cfg, "number_of_ls", number_of_ls)
+            if what == "get_fff_logs":
+              host = bottle.request.query.get('host', default=None)
+              answer = "Specify host FFF"
+              if host : answer = fff_cluster.get_txt_file( host, self.opts["logfile"], 30 )
+              return json.dumps( [answer] )
 
-            fff_cluster.write_config( self.opts, host, cfg )
+            if what == "start_playback_run" :
+              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              if( fff_cluster.get_host() != host ) :
+                url = 'http://' + host + ':' + str(self.opts["web.port"])  + '/cr/exe?' + bottle.request.urlparts.query
+                r = requests.get(url, data=bottle.request.body, headers = bottle.request.headers, timeout=60)
+                return r.content
+
+              run_number   = bottle.request.query.get("run_number", default=None)
+              run_class    = bottle.request.query.get("run_key",  default=None)
+              number_of_ls = bottle.request.query.get("number_of_ls",  default=0)
+
+              cfg = fff_cluster.get_simulator_config( self.opts, fff_cluster.get_host(), host )
+              cfg = json.loads( cfg )
+
+              run_path = os.path.dirname( cfg["source"] )
+              cfg = fff_cluster.update_config(cfg, "source", run_path + "/" + run_number )
+              cfg = fff_cluster.update_config(cfg, "run_key", run_class)
+              cfg = fff_cluster.update_config(cfg, "number_of_ls", int(number_of_ls))
+              fff_cluster.write_config( self.opts, cfg )
+
+              # start new run
+              sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+              sock.connect("\0" + fff_dqmtools.get_lock_key("fff_simulator"))
+              sock.sendall("next_run\n")
+              sock.shutdown(socket.SHUT_WR)
+              sock.close()
+              return "start_playback_run Ok"
+
+          except Exception as error_log:
+            bottle.response.status = 400
+            log.warning( "cr_api(): get_dqm_machines error" )
+            log.warning( error_log )
+            return error_log
+          log.warning( "cr_api() : No actions defined for that request : " + repr(what) )
+          return "No actions defined for that request"
+
+        
 
 def run_web_greenlet(db, host="0.0.0.0", port=9215, opts = {}, **kwargs):
     listener = (host, port, )
@@ -765,7 +800,7 @@ def run_web_greenlet(db, host="0.0.0.0", port=9215, opts = {}, **kwargs):
 
     log.info("Using db: %s." % (db.db_str))
     log.info("Started web server at [%s]:%d" % (host, port))
-    log.info("Go to http://%s:%d/" % (socket.gethostname(), port))
+    log.info("Go to http://%s:%d/" % (fff_cluster.get_host(), port))
 
     server.serve_forever()
 

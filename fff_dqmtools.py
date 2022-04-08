@@ -416,7 +416,7 @@ if __name__ == "__main__":
         "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
         "web.secret": "changeme",
-        "web.secret_name": "selenium-secret",
+        "web.secret_name": "selenium-secret-secret",
 
         "deleter.ramdisk": "/fff/ramdisk/",
         "deleter.tag": "fff_deleter",
@@ -428,6 +428,9 @@ if __name__ == "__main__":
     key_types = {
         "logfile": str,
         "pidfile": str,
+
+        "hltd_logfile": str,
+        "anelastic_logfile": str,
 
         "web.port": int,
         "web.db": str,
