@@ -690,6 +690,26 @@ class WebServer(bottle.Bottle):
           what = bottle.request.query.get('what')
 
           try:
+            if what == "get_dqm_clients":
+              host = bottle.request.query.get('host', default=None)
+              playback = bottle.request.query.get('playback', default=True)
+              cmssw_path  = self.opts["cmssw_path_playback"] if playback == "1" else self.opts["cmssw_path_production"]
+              cmssw_path += self.opts["dqm_clients_subdir"]
+              clients_path = self.opts["hltd_clients_path"]
+              answer = fff_cluster.get_dqm_clients( host, cmssw_path, clients_path )
+              return json.dumps( answer )
+
+            if what == "change_dqm_client" : 
+              host = bottle.request.query.get('host', default=None)
+              playback = bottle.request.query.get('playback', default=True)
+              cmssw_path  = self.opts["cmssw_path_playback"] if playback == "1" else self.opts["cmssw_path_production"]
+              cmssw_path += self.opts["dqm_clients_subdir"]
+              clients_path = self.opts["hltd_clients_path"]
+              client = bottle.request.query.get('client', default=None)
+              state  = bottle.request.query.get('state', default=0)
+              answer = fff_cluster.change_dqm_client( host, cmssw_path, clients_path, client, state )
+              return answer
+
             if what == "get_dqm_machines" :
                 nodes = fff_cluster.get_node()
                 nodes = nodes["_all"]

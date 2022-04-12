@@ -113,7 +113,7 @@ def __run__(opts, logger, **kwargs):
     log = logger
 
     s = Analyzer(
-        top = "/dqmdata/dqm_cmssw/",
+        top = opts[ os.path.dirname( opts["cmssw_path_playback"] ) ],
         app_tag = kwargs["name"],
         report_directory = opts["path"],
     )

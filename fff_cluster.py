@@ -44,6 +44,29 @@ def get_rpm_version_all(soft_path):
 
   return answer
 
+def get_dqm_clients( host, cmssw_path, clients_path ):
+  if not host : return "host argument not defined"
+  if not cmssw_path : return "cmssw_path argument not defined"
+  available = popen_timeout(["ssh " + host + " \"find " + cmssw_path + " -type f -name *_cfg.py\""], 15)
+  activated = popen_timeout(["ssh " + host + " \"find " + clients_path + " -type l\""], 15)
+
+  available = [ os.path.basename( a ) for a in available.split("\n") if a ]
+  activated = [ os.path.basename( a ) for a in activated.split("\n") if a ]
+  answer = [ [a, a in activated] for a in available ]
+
+  return answer
+
+def change_dqm_client( host, cmssw_path, clients_path, client, state ):
+  answer = None
+  if state == "0":
+    answer = popen_timeout(["ssh " + host + " \"sudo find " + clients_path + " -type l -name " + client + " -delete\""], 15)
+  else :
+    inp = os.path.join( cmssw_path, client )
+    answer = popen_timeout(["ssh " + host + " \"cd " + clients_path + "/idle; sudo ln -s " + inp + "\""], 15)
+
+  if not answer : return "Ok"
+  return answer
+
 def get_simulator_config(opts, this_host, simulator_host):
   if not simulator_host : return "host argument not defined"
   path = opts["simulator.conf"]
