@@ -155,7 +155,7 @@ class ScramCache(object):
         self.scan_time = time.time()
 
     def update_scram_stuff(self):
-        arch_re = re.compile(r"slc\d_amd64_gcc\d\d\d")
+        arch_re = re.compile(r"slc\d_amd64_gcc[0-9]+")
 
         projects = []
         def parse_scram(line):
