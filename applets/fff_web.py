@@ -710,6 +710,12 @@ class WebServer(bottle.Bottle):
               answer = fff_cluster.change_dqm_client( host, cmssw_path, clients_path, client, state )
               return answer
 
+            if what == "get_cmssw_info" : 
+              answer_1 = fff_cluster.get_cmssw_info( self.opts["cmssw_path_playback"] )
+              answer_2 = fff_cluster.get_cmssw_info( self.opts["cmssw_path_production"] )
+              answer = "\n<strong>Playback:</strong>\n" + answer_1 + "\n<strong>Production:</strong>\n" + answer_2
+              return answer
+
             if what == "get_dqm_machines" :
                 nodes = fff_cluster.get_node()
                 nodes = nodes["_all"]

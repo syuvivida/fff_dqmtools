@@ -44,6 +44,38 @@ def get_rpm_version_all(soft_path):
 
   return answer
 
+def get_cmssw_info( cmssw_path ):
+  if not cmssw_path : return "cmssw_path argument not defined"
+  if cmssw_path[-1] != '/' : cmssw_path += '/'
+  
+  # 1. read CMSSW logs
+  versions_raw = popen_timeout(["grep \"Selected release:\" --exclude-dir=\"*\" --include=*.log " + cmssw_path + "*"], 15)
+  if not "Selected release:" in versions_raw : return versions_raw
+  answer = versions_raw.split("Selected release: ")[-1]
+  
+  # 2. get PRs
+  prs_raw = popen_timeout(["find " + cmssw_path + " -type f -name \"merge*log\""], 15)
+  answer += "PRs :"
+
+  # 3. get PRs merge status
+  for fname in prs_raw.split("\n"):
+    try:
+      pr_id = os.path.basename( fname ).split(".")[1]
+      status = popen_timeout(["grep \"Merge successful\" " + fname], 15)  
+      answer += "\n " + pr_id;  
+      answer += " ok" if status else " "
+    except: continue
+
+  # 4. get GTs
+  gts_raw = popen_timeout(["grep -r \"GlobalTag.globaltag = \" " + cmssw_path + "src/DQM/Integration/python/config/*"], 15)
+  if not "GlobalTag.globaltag" in gts_raw : return answer
+  answer += "\nGTs:\n"
+  for line in gts_raw.split("\n"):
+    if "autoCond" in line : continue;
+    answer += line + "\n"
+
+  return answer
+
 def get_dqm_clients( host, cmssw_path, clients_path ):
   if not host : return "host argument not defined"
   if not cmssw_path : return "cmssw_path argument not defined"
@@ -168,4 +200,4 @@ def host_wrapper(allow = []):
     return noop_wrapper
 
 if __name__ == "__main__":
-  print get_node()
+  print( get_node() )
