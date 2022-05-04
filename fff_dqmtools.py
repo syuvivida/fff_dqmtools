@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 import sys, os
 def prepare_imports():
@@ -402,6 +402,12 @@ if __name__ == "__main__":
         "analyze_files", "analyze_files_lookarea_c2f11_19_01", "analyze_releases",
     ]
 
+    config_web_secret = "changeme"
+    try: 
+      sys.path.append('/var/lib/fff_dqmtools/')
+      import fff_config
+      config_web_secret = fff_config.web_secret
+    except: pass
     opt = {
         'do_foreground': False,
         'path': "/tmp/dqm_monitoring/",
@@ -410,8 +416,18 @@ if __name__ == "__main__":
         "logfile": "/var/log/fff_dqmtools.log",
         "pidfile": "/var/run/fff_dqmtools.pid",
 
+        "hltd_logfile": "/var/log/hltd/hltd.log",
+        "anelastic_logfile": "/var/log/hltd/anelastic.log",
+
         "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
+        "web.secret": config_web_secret,
+        "web.secret_name": "selenium-secret-secret",
+
+        "cmssw_path_playback":"/dqmdata/dqm_cmssw/current_playback",
+        "cmssw_path_production":"/dqmdata/dqm_cmssw/current_production",
+        "dqm_clients_subdir":"/src/DQM/Integration/python/clients/",
+        "hltd_clients_path":"/etc/appliance/dqm_resources/",
 
         "deleter.ramdisk": "/fff/ramdisk/",
         "deleter.tag": "fff_deleter",
@@ -424,8 +440,13 @@ if __name__ == "__main__":
         "logfile": str,
         "pidfile": str,
 
+        "hltd_logfile": str,
+        "anelastic_logfile": str,
+
         "web.port": int,
         "web.db": str,
+        "web.secret": str,
+        "web.secret_name": str,
 
         "deleter.ramdisk": str,
         "deleter.tag": str,
