@@ -402,6 +402,12 @@ if __name__ == "__main__":
         "analyze_files", "analyze_files_lookarea_c2f11_19_01", "analyze_releases",
     ]
 
+    config_web_secret = "changeme"
+    try: 
+      sys.path.append('/var/lib/fff_dqmtools/')
+      import fff_config
+      config_web_secret = fff_config.web_secret
+    except: pass
     opt = {
         'do_foreground': False,
         'path': "/tmp/dqm_monitoring/",
@@ -415,7 +421,7 @@ if __name__ == "__main__":
 
         "web.db": "/var/lib/fff_dqmtools/db.20171027.sqlite3",
         "web.port": 9215,
-        "web.secret": "changeme",
+        "web.secret": config_web_secret,
         "web.secret_name": "selenium-secret-secret",
 
         "cmssw_path_playback":"/dqmdata/dqm_cmssw/current_playback",
