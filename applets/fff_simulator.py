@@ -397,6 +397,7 @@ class SimulatorRun(object):
         else:
             log.info("Files for this lumi (%06d) will be skipped (to simulate holes in delivery)", play_lumi)
 
+        return # files are rather removed gently by FileDeleter greenlet
         self.manager.register_files_for_cleanup(run, play_lumi, written_files)
 
 class RunManager(object):

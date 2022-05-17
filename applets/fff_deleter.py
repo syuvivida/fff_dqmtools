@@ -86,7 +86,7 @@ def collect(top, log):
     return collected, collected_paths
 
 class FileDeleter(object):
-    def __init__(self, top, thresholds, report_directory, log, fake=True, app_tag="fff_deleter"):
+    def __init__(self, top, thresholds, report_directory, log, fake=True, skip_latest=False, app_tag="fff_deleter"):
         self.top = top
         self.fake = fake
         self.thresholds = thresholds
@@ -95,6 +95,7 @@ class FileDeleter(object):
         self.app_tag = app_tag
         self.log = log
         self.delay_seconds = 30
+        self.skip_latest = skip_latest
 
         self.hostname = socket.gethostname()
 
@@ -121,7 +122,7 @@ class FileDeleter(object):
 
         return fn
 
-    def delete(self, f):
+    def overwrite(self, f):
         if not f.endswith(".deleted"):
             return f
 
@@ -137,7 +138,7 @@ class FileDeleter(object):
 
         return f
 
-    def unlink(self, f, json=False):
+    def delete(self, f, json=False):
         if not f.endswith(".deleted"):
             return f
 
@@ -205,6 +206,8 @@ class FileDeleter(object):
         collected, collected_paths = collect(self.top, self.log)
         self.log.info("Done file collection, took %.03fs.", time.time() - start)
 
+        latest_run = collected[-1][0][0]
+
         file_count = len(collected)
 
         # stopSizeDelete can still be positive after this
@@ -214,6 +217,7 @@ class FileDeleter(object):
         start_cleanup = time.time()
         for entry in collected:
             sort_key, fp, fsize, ftime = entry
+            if self.skip_latest and latest_run == sort_key: continue # do not want to 
 
             # unlink file and json older than 2 days
             # this has no effect on thresholds, but affects performance
@@ -221,7 +225,7 @@ class FileDeleter(object):
             if fsize == 0 and age >= 2*24*60*60 and fp.endswith(".deleted"):
                 # remove empty and old files
                 # no one uses them anymore...
-                self.unlink(fp, json=True)
+                self.delete(fp, json=True)
 
             if stopSizeRename <= 0:
                 break
@@ -230,11 +234,11 @@ class FileDeleter(object):
                 stopSizeRename -= fsize
 
                 if fp.endswith(".deleted") and stopSizeDelete > 0:
-                    # delete the files which have been previously marked
+                    # overwrite the files which have been previously marked with dummy
                     # and we have disk over-usage
                     stopSizeDelete -= fsize
 
-                    self.delete(fp)
+                    self.overwrite(fp)
                 elif fp.endswith(".deleted"):
                     # already renamed, do nothing
                     pass
@@ -244,6 +248,7 @@ class FileDeleter(object):
 
         if self.thresholds.has_key("delete_folders") and self.thresholds["delete_folders"]:
             for entry in collected_paths:
+                if self.skip_latest and str(latest_run) in entry.path : continue
 
                 # check if empty - we don't non-empty dirs
                 # empty as in a 'no stream files left to truncate' sense
