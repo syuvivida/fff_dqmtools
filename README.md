@@ -2,6 +2,7 @@ fff_dqmtools
 ============
 
 fff_dqmtools aka DQM^2
+branch for migration to new DQM RUBU machines
 
 #### Installation
 Create a RPM locally executing `makerpm.sh`. Then:
