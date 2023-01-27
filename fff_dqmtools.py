@@ -17,7 +17,7 @@ def prepare_imports():
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
 
-    if not os.environ.has_key("PYTHONDONTWRITEBYTECODE"):
+    if "PYTHONDONTWRITEBYTECODE" not in os.environ:
         os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
         sys.dont_write_bytecode = True
 
@@ -89,7 +89,7 @@ class Server(object):
         self.loggers = {}
 
     def config_log(self, name):
-        if not self.loggers.has_key(name):
+        if name not in self.loggers:
             log_capture = LogCaptureHandler()
 
             l = logging.getLogger(name)
@@ -172,16 +172,16 @@ def lock_wrapper(f):
 
 def setuid(uid, gid):
     try:
-        if isinstance(uid, basestring):
-            uid = pwd.getpwnam(uid).pw_uid
+        if isinstance(uid, str):
+            uid = pwd.getpwnam(uid).pw_uid # get user id from user name https://docs.python.org/3/library/pwd.html
 
-        if isinstance(gid, basestring):
-            gid = grp.getgrnam(gid).gr_gid
+        if isinstance(gid, str):
+            gid = grp.getgrnam(gid).gr_gid # get group id from group name
 
         os.setgid(gid)
         os.setuid(uid)
     except Exception as e:
-        print e
+        print( e )
         sys.stderr.write("Can't set the uid/gid: %s\n" % str(e))
         sys.stderr.flush()
 
@@ -236,7 +236,7 @@ def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     def preexec():
         # setting setuid clears PR_SET_PDEATHSIG
         # so do it before setting it
-        if wrapper_kwargs.has_key('uid'):
+        if 'uid' in wrapper_kwargs:
             setuid(wrapper_kwargs["uid"], wrapper_kwargs["gid"])
 
         _pr_set_deathsig()
@@ -311,7 +311,7 @@ def fork_wrapper_decorate(func, **wrapper_kwargs):
             logger = kwargs["logger"]
 
             module_name = kwargs["module_name"]
-            print kwargs["module"]
+            print( kwargs["module"] )
 
             kwopts = {
                 "opts": kwargs["opts"],
@@ -473,7 +473,7 @@ if __name__ == "__main__":
             opt["applets"] = arg.pop(0).split(",")
             continue
 
-        if a.startswith("--") and key_types.has_key(a[2:]):
+        if a.startswith("--") and a[2:] in key_types:
             key = a[2:]
             t = key_types[key]
             opt[key] = t(arg.pop(0))

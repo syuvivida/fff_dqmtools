@@ -75,9 +75,9 @@ def analyze_run_entry(e):
             try:
                 with open(f, "r") as fd:
                     jsn = json.load(fd).get("data", [-1]*5)
-                    evt_processed = long(jsn[0])
-                    evt_accepted = long(jsn[1])
-                    fsize = long(jsn[4])
+                    evt_processed = int(jsn[0])
+                    evt_accepted = int(jsn[1])
+                    fsize = int(jsn[4])
             except:
                 log.warning("Crash while reading %s.", f, exc_info=True)
 

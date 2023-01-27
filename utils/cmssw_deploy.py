@@ -651,7 +651,7 @@ if __name__ == "__main__":
         pass
     elif command == "select-release":
         target = select_target(scram_cache.scram_projects, args.tag, args.arch, args.tag_blacklist)
-        print target
+        print( target )
     elif command == "make-release":
         make_release(scram_cache, args)
     #elif command == "prepare-online-release":

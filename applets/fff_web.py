@@ -5,7 +5,6 @@ import sqlite3
 import os, sys, time
 import socket
 import logging
-import StringIO
 
 import fff_dqmtools
 import fff_cluster
@@ -126,7 +125,7 @@ class Database(object):
             if from_rev is None:
                 c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Headers ORDER BY rev ASC")
             else:
-                from_rev = long(from_rev)
+                from_rev = int(from_rev)
                 c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Headers WHERE rev > ? ORDER BY rev ASC", (from_rev, ))
 
             headers = list(self.prepare_headers(c))
@@ -248,7 +247,7 @@ class SyncSocket(WebSocket):
             # if know_rev is not zero, we have to send at least a single header
             # to let the web interface to know it is synchronized
             if known_rev is not None:
-                known_rev = long(known_rev) - 1
+                known_rev = int(known_rev) - 1
 
 
             # send the current state
@@ -526,7 +525,7 @@ class WebServer(bottle.Bottle):
             if pid != int(data["pid"]):
                 raise bottle.HTTPResponse("Process and pid not found.", status=404)
 
-            if b.has_key("exit_code"):
+            if "exit_code" in b:
                 raise bottle.HTTPResponse("Process already died.", status=404)
 
             signal = int(data["signal"])

@@ -254,16 +254,13 @@ class SimulatorRun(object):
                 # remap stream if set
                 stream_orig = stream
                 remap = self.config.get("stream_remap", {})
-                if remap.has_key(stream):
+                if stream in remap:
                     stream = remap[stream]
-                    if not self.streams_found.has_key(stream):
+                    if stream not in self.streams_found:
                         log.info("Stream %s will be converted into stream %s", stream_orig, stream)
 
                 files_found.add(f)
-                stream_dct = self.streams_found.setdefault(stream, {
-                    'lumi_files': []
-                })
-
+                stream_dct = self.streams_found.setdefault(stream, { 'lumi_files': [] })
                 stream_dct["lumi_files"].append((f, stream_source, ))
 
         if run_found is None:
@@ -279,7 +276,7 @@ class SimulatorRun(object):
 
     def create_run_directory(self):
         rd = os.path.join(self.config["ramdisk"], 'run%d' % self.config["run"])
-        os.makedirs(rd, 0755)
+        os.makedirs(rd, 0o755)
         log.info('Created run directory: %s' % rd)
         self.run_directory = rd
 

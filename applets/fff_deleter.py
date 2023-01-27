@@ -60,7 +60,7 @@ def collect(top, log):
 
         # insert folder descriptions
         if re_folders.match(root_rl) is not None:
-            if not collected_paths.has_key(root_rl):
+            if root_rl not in collected_paths:
                 _dsize, dtime = stat(root)
                 collected_paths[root_rl] = DataEntry(root_rl, root, 0, dtime)
 
@@ -246,7 +246,7 @@ class FileDeleter(object):
                     # rename them, as a warning for the next iteration
                     self.rename(fp)
 
-        if self.thresholds.has_key("delete_folders") and self.thresholds["delete_folders"]:
+        if "delete_folders" in self.thresholds and self.thresholds["delete_folders"]:
             for entry in collected_paths:
                 if self.skip_latest and str(latest_run) in entry.path : continue
 

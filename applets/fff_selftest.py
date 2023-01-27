@@ -92,4 +92,4 @@ if __name__ == "__main__":
     x = FFFMonitoringTest(path="./")
     fp = x.make_selftest()
 
-    print "Made report:", fp
+    print("Made report:", fp)
