@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # Provides control socket for fff_dqmtools' applets.
 # This socket is already used for locking, this just listens to it.

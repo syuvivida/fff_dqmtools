@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -14,8 +14,8 @@ import fnmatch
 from collections import OrderedDict, namedtuple
 
 import fff_dqmtools
-import fff_filemonitor
-import fff_deleter
+import applets.fff_filemonitor as fff_filemonitor
+import applets.fff_deleter as fff_deleter
 import fff_cluster
 
 from utils import cmssw_deploy

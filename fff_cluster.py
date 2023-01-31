@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # this should later become a reader for a configuration file in /etc/
 

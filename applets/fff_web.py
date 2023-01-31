@@ -1,14 +1,14 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 import json
 import re
 import sqlite3
-import os, sys, time
+import os, time
 import socket
 import logging
 
 import fff_dqmtools
 import fff_cluster
-import fff_filemonitor
+import applets.fff_filemonitor as fff_filemonitor
 
 # fff_dqmtools fixed the imports for us
 import bottle
@@ -161,7 +161,7 @@ class Database(object):
                     rev = get_last_rev()
 
                 # get the document
-                if isinstance(body, basestring):
+                if isinstance(body, str):
                     doc = json.loads(body)
                 else:
                     doc = body
@@ -171,7 +171,7 @@ class Database(object):
 
                 # create the header and update the body
                 header = self.make_header(doc, rev=rev, write_back=True)
-                body = json.dumps(doc).encode("zlib")
+                body = zlib.compress( json.dumps(doc).encode("utf-8") )
 
                 db.execute("INSERT OR REPLACE INTO Headers (id, rev, timestamp, type, hostname, tag, run) VALUES (?, ?, ?, ?, ?, ?, ?)", (
                     header.get("_id"),
@@ -350,9 +350,8 @@ class SyncSocket(WebSocket):
         c = Proxy(peer_address)
         c.opened()
         for msg in input_messages:
-            log.info("Proxy mode insert msg: %s", msg);
-            c.received_message(ProxyMessage(msg))
-
+          log.info("Proxy mode insert msg: %s", msg);
+          c.received_message(ProxyMessage(msg))
         c.closed(code=1006, reason="Proxy mode end.", output_log=False)
 
         return output_messages
@@ -406,10 +405,10 @@ class WebServer(bottle.Bottle):
             log.info("check_auth(): host=%s", host)
             log.debug( bottle.request.url )
             log.debug( str(bottle.request.auth) )
-      	    log.debug( str(bottle.request.remote_route) )
-      	    log.debug( str(bottle.request.remote_addr) )
-      	    log.debug( str(bottle.request.json) )
-      	    log.debug( str(bottle.request.path ) )
+            log.debug( str(bottle.request.remote_route) )
+            log.debug( str(bottle.request.remote_addr) )
+            log.debug( str(bottle.request.json) )
+            log.debug( str(bottle.request.path ) )
             log.debug( str(bottle.request.cookies.items() ) )
 
             if "cmsweb" in bottle.request.url : 

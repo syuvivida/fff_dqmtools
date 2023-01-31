@@ -1,5 +1,5 @@
 import fff_dqmtools
-import fff_deleter
+import applets.fff_deleter as fff_deleter
 import fff_cluster
 import logging
 

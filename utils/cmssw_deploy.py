@@ -536,7 +536,7 @@ def make_release(sc, args):
     # create a special "wrapper" file, to help us execute commands
     # inside the cmssw environment
     with open(os.path.join(base_path, "cmswrapper.sh"), "w") as f:
-        os.fchmod(f.fileno(), 0755)
+        os.fchmod(f.fileno(), 0o755)
         f.write("#!/bin/sh\n")
         f.write("")
         f.write("# cmdline: %s\n" % " ".join(sys.argv))

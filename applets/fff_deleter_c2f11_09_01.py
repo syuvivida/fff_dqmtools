@@ -1,6 +1,6 @@
 import fff_dqmtools
 import fff_cluster
-import fff_deleter
+import applets.fff_deleter as fff_deleter
 import logging
 
 @fff_cluster.host_wrapper(allow = ["bu-c2f11-09-01"])

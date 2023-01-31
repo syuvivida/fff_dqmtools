@@ -22,7 +22,7 @@ from applets.fff_filemonitor import atomic_create_write
 # usually atomic_create_write writes files with 0600 mask.
 # we need a bit more readable files instead.
 def atomic_write(filename, content):
-    return atomic_create_write(filename, content, mode=0644)
+    return atomic_create_write(filename, content, mode=0o644)
 
 log = logging.getLogger("fff_simulator")
 

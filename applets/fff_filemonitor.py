@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -19,7 +19,7 @@ def atomic_read_delete(fp):
 
     tmp_fp = fp
     tmp_fp += ".open_pid%d" % os.getpid()
-    tmp_fp += "_tag" + os.urandom(32).encode("hex").upper()
+    tmp_fp += "_tag" + os.urandom(32).hex().upper()
 
     os.rename(fp, tmp_fp)
 
@@ -68,7 +68,7 @@ def atomic_create_write(fp, body, mode=0o600):
 
     try:
         tmp_fp = f.name
-        f.write(body)
+        f.write( body.encode('utf-8') )
         f.close()
 
         if mode != 0o600:
@@ -87,7 +87,7 @@ def http_upload(lst_gen, port, log=None, test_webserver=False):
         return 0
 
     data = json.dumps({ "docs": docs })
-    r = urllib.request.Request(url, data, {'Content-Type': 'application/json'})
+    r = urllib.request.Request(url, data.encode('utf-8'), {'Content-Type': 'application/json'})
 
     f = None
     try:

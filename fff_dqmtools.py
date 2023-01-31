@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys, os
 def prepare_imports():
@@ -32,7 +32,7 @@ import gevent
 
 # calculate installation key, used in locking
 __ipath__ = os.path.dirname(os.path.realpath(__file__))
-__ipkey__ = hashlib.sha1(__ipath__).hexdigest()[:8]
+__ipkey__ = hashlib.sha1(__ipath__.encode('utf-8')).hexdigest()[:8]
 
 log = logging.getLogger(__name__)
 
@@ -200,6 +200,7 @@ def _select_readlines(fd):
         assert fd in rlist
 
         buf = os.read(fd, 4096)
+        buf = buf.decode('utf-8')
         if len(buf) == 0:
             if lbuf:
                 yield "".join(lbuf)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -9,7 +9,7 @@ import json
 import logging
 
 import fff_dqmtools
-import fff_filemonitor
+import applets.fff_filemonitor as fff_filemonitor
 
 log = logging.getLogger(__name__)
 
