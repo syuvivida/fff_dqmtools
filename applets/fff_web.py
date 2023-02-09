@@ -373,8 +373,8 @@ class WebServer(bottle.Bottle):
         static_path = os.path.join(static_path, "../web.static/")
 
         # from wsgiproxy.app import WSGIProxyApp
-        # proxy_app = WSGIProxyApp("https://fu-c2f11-15-02.cms:9215/sync_proxy")
-        # root.mount(proxy_app,"/dqm/dqm-square-origin/redirect/fu-c2f11-15-02.cms:9215/sync")
+        # proxy_app = WSGIProxyApp("https://dqmrubu-c2a06-03-01.cms:9215/sync_proxy")
+        # root.mount(proxy_app,"/dqm/dqm-square-origin/redirect/dqmrubu-c2a06-03-01.cms:9215/sync")
 
         # the decorator to enable cross domain communication
         # for http-proxy stuff
@@ -733,12 +733,12 @@ class WebServer(bottle.Bottle):
               return json.dumps( answer )
 
             if what == "get_simulator_config" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               answer = fff_cluster.get_simulator_config( self.opts, fff_cluster.get_host(), host )
               return json.dumps( answer )
 
             if what == "get_simulator_runs" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               answer = fff_cluster.get_simulator_runs( self.opts, fff_cluster.get_host(), host )
               return json.dumps( answer )
 
@@ -771,7 +771,7 @@ class WebServer(bottle.Bottle):
               return json.dumps( [answer] )
 
             if what == "start_playback_run" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               if( fff_cluster.get_host() != host ) :
                 url = 'http://' + host + ':' + str(self.opts["web.port"])  + '/cr/exe?' + bottle.request.urlparts.query
                 r = requests.get(url, data=bottle.request.body, headers = bottle.request.headers, timeout=60)

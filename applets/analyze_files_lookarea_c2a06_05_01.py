@@ -2,7 +2,7 @@ import fff_dqmtools
 import fff_cluster
 import logging
 
-@fff_cluster.host_wrapper(allow = ["bu-c2f11-19-01"])
+@fff_cluster.host_wrapper(allow = ["dqmrubu-c2a06-05-01"])
 @fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, **kwargs):
