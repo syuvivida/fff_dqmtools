@@ -70,6 +70,7 @@ UserConfigFile = "~/.cmssw_deploy.jsn"
 log_shell_re = re.compile("^\[(\d)\]\s")
 def log_shell(line):
     level = 0
+    line = line.decode("utf-8")
     match = log_shell_re.match(line)
     if match:
         level = int(match.group(1)) + 1
@@ -155,8 +156,8 @@ class ScramCache(object):
         self.scan_time = time.time()
 
     def update_scram_stuff(self):
-#        arch_re = re.compile(r"slc\d_amd64_gcc[0-9]+")
-        arch_re = re.compile(r"cs\d_amd64_gcc[0-9]+")
+        # arch_re = re.compile(r"slc\d_amd64_gcc[0-9]+")
+        arch_re = re.compile(r"el\d_amd64_gcc[0-9]+")
 
         projects = []
         def parse_scram(line):
@@ -164,6 +165,9 @@ class ScramCache(object):
             if len(s) != 3: return False
 
             project, tag, path = s
+            project = project.decode("utf-8")
+            tag = tag.decode("utf-8")
+            path = path.decode("utf-8")
             arch = None
 
             m = arch_re.search(path)
@@ -207,7 +211,7 @@ def select_target(available, tag, arch, tag_blacklist):
 
     while True:
         # check for an exact match, special case
-        x = filter(lambda x: tag == x.title, available)
+        x = list(filter(lambda x: tag == x.title, available))
         if len(x) == 1: return x[0]
 
         filtered = list(filter(lambda x: tag in x.title, available))
@@ -225,7 +229,7 @@ def select_target(available, tag, arch, tag_blacklist):
         # print the choices
         if tag: log.warning("Filter: *%s*" % tag)
         readline.set_completer(completer_func)
-        line = raw_input('Tag to use (tab to complete, %d entries): ' % len(filtered))
+        line = input('Tag to use (tab to complete, %d entries): ' % len(filtered))
         readline.set_completer(None)
         line = line.strip()
         tag = line
