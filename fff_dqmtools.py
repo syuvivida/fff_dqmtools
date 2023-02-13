@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys, os
 def prepare_imports():
@@ -17,7 +17,7 @@ def prepare_imports():
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
 
-    if not os.environ.has_key("PYTHONDONTWRITEBYTECODE"):
+    if "PYTHONDONTWRITEBYTECODE" not in os.environ:
         os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
         sys.dont_write_bytecode = True
 
@@ -32,7 +32,7 @@ import gevent
 
 # calculate installation key, used in locking
 __ipath__ = os.path.dirname(os.path.realpath(__file__))
-__ipkey__ = hashlib.sha1(__ipath__).hexdigest()[:8]
+__ipkey__ = hashlib.sha1(__ipath__.encode('utf-8')).hexdigest()[:8]
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class Server(object):
         self.loggers = {}
 
     def config_log(self, name):
-        if not self.loggers.has_key(name):
+        if name not in self.loggers:
             log_capture = LogCaptureHandler()
 
             l = logging.getLogger(name)
@@ -172,16 +172,16 @@ def lock_wrapper(f):
 
 def setuid(uid, gid):
     try:
-        if isinstance(uid, basestring):
-            uid = pwd.getpwnam(uid).pw_uid
+        if isinstance(uid, str):
+            uid = pwd.getpwnam(uid).pw_uid # get user id from user name https://docs.python.org/3/library/pwd.html
 
-        if isinstance(gid, basestring):
-            gid = grp.getgrnam(gid).gr_gid
+        if isinstance(gid, str):
+            gid = grp.getgrnam(gid).gr_gid # get group id from group name
 
         os.setgid(gid)
         os.setuid(uid)
     except Exception as e:
-        print e
+        print( e )
         sys.stderr.write("Can't set the uid/gid: %s\n" % str(e))
         sys.stderr.flush()
 
@@ -200,6 +200,7 @@ def _select_readlines(fd):
         assert fd in rlist
 
         buf = os.read(fd, 4096)
+        buf = buf.decode('utf-8')
         if len(buf) == 0:
             if lbuf:
                 yield "".join(lbuf)
@@ -236,7 +237,7 @@ def _execute_module(module_name, logger, append_environ, **wrapper_kwargs):
     def preexec():
         # setting setuid clears PR_SET_PDEATHSIG
         # so do it before setting it
-        if wrapper_kwargs.has_key('uid'):
+        if 'uid' in wrapper_kwargs:
             setuid(wrapper_kwargs["uid"], wrapper_kwargs["gid"])
 
         _pr_set_deathsig()
@@ -311,7 +312,7 @@ def fork_wrapper_decorate(func, **wrapper_kwargs):
             logger = kwargs["logger"]
 
             module_name = kwargs["module_name"]
-            print kwargs["module"]
+            print( kwargs["module"] )
 
             kwopts = {
                 "opts": kwargs["opts"],
@@ -394,13 +395,13 @@ if __name__ == "__main__":
     default_applets = [
         "fff_web", "fff_selftest", "fff_logcleaner", "fff_logcleaner_gzip", "fff_filemonitor",
 
-        "fff_deleter_c2f11_09_01", "fff_deleter_playback_c2f11_13_01",
-        "fff_deleter_lookarea_c2f11_19_01", "fff_deleter_minidaq_c2f11_19_01",
+        "fff_deleter_c2a06_01_01", "fff_deleter_playback_c2a06_03_01",
+        "fff_deleter_lookarea_c2a06_05_01", "fff_deleter_minidaq_c2a06_05_01",
         "fff_deleter_minidaq_cms904",
 
         "fff_simulator",
-        "analyze_files", "analyze_files_lookarea_c2f11_19_01", "analyze_releases",
-    ]
+	"analyze_files", "analyze_files_lookarea_c2a06_05_01", "analyze_releases",
+    ]        
 
     config_web_secret = "changeme"
     try: 
@@ -473,7 +474,7 @@ if __name__ == "__main__":
             opt["applets"] = arg.pop(0).split(",")
             continue
 
-        if a.startswith("--") and key_types.has_key(a[2:]):
+        if a.startswith("--") and a[2:] in key_types:
             key = a[2:]
             t = key_types[key]
             opt[key] = t(arg.pop(0))

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import subprocess
@@ -9,9 +9,9 @@ import subprocess
 sys.dont_write_bytecode = True
 
 def call(*kargs, **kwargs):
-    print "Running:", kargs
+    print( "Running:", kargs)
     r = subprocess.call(*kargs, **kwargs)
-    print "Finished command:", r
+    print( "Finished command:", r)
 
 def install_local(rpm):
     ### main install
@@ -33,10 +33,10 @@ def install_local(rpm):
     ##call(["sudo ls -la /etc/rc.d/*/*fff_*"], shell=True)
 
 def install_remote(spath, host):
-    print "*"*80
-    print "* Installing on:", host
-    print "*\n"*7
-    print "*"*80
+    print( "*"*80)
+    print( "* Installing on:", host)
+    print( "*\n"*7)
+    print( "*"*80)
 
     subprocess.call(["ssh", host, "python", spath, "--local"])
 
@@ -52,9 +52,9 @@ if __name__ == "__main__":
     rpm = None
     if len(rpms) == 1:
         rpm = rpms[0]
-        print "RPM:", rpm
+        print( "RPM:", rpm)
     else:
-        print "RPM not found, do ./makerpm.sh"
+        print( "RPM not found, do ./makerpm.sh")
         sys.exit(1)
 
 
@@ -68,15 +68,15 @@ if __name__ == "__main__":
             import fff_cluster
             all = []
             for k, hosts in fff_cluster.get_node()["_all"].items():
-                print k + ":", " ".join(hosts)
+                print( k + ":", " ".join(hosts))
                 all += hosts
 
-            print "all:", " ".join(all)
+            print( "all:", " ".join(all))
             sys.exit(1)
 
         for host in hosts:
             install_remote(spath, host)
     else:
-        print "Please provide either --local or --remote"
+        print ("Please provide either --local or --remote")
 
 

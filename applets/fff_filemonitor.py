@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -9,7 +9,7 @@ import subprocess
 import socket
 import struct
 import time
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import json
 
 import fff_dqmtools
@@ -19,7 +19,7 @@ def atomic_read_delete(fp):
 
     tmp_fp = fp
     tmp_fp += ".open_pid%d" % os.getpid()
-    tmp_fp += "_tag" + os.urandom(32).encode("hex").upper()
+    tmp_fp += "_tag" + os.urandom(32).hex().upper()
 
     os.rename(fp, tmp_fp)
 
@@ -27,7 +27,7 @@ def atomic_read_delete(fp):
     flags = os.O_RDWR|os.O_NOFOLLOW|os.O_NOCTTY|os.O_NONBLOCK|os.O_NDELAY
     try:
         fd = os.open(tmp_fp, flags)
-    except OSError, e:
+    except OSError as e:
         # check if it was a symbolic link and remove if so
         if e.errno == errno.ELOOP:
             os.unlink(tmp_fp)
@@ -58,7 +58,7 @@ def atomic_read_delete(fp):
 
     return b
 
-def atomic_create_write(fp, body, mode=0600):
+def atomic_create_write(fp, body, mode=0o600):
     import tempfile
 
     dir = os.path.dirname(fp)
@@ -68,10 +68,10 @@ def atomic_create_write(fp, body, mode=0600):
 
     try:
         tmp_fp = f.name
-        f.write(body)
+        f.write( body.encode('utf-8') )
         f.close()
 
-        if mode != 0600:
+        if mode != 0o600:
             os.chmod(tmp_fp, mode)
 
         os.rename(tmp_fp, fp)
@@ -87,13 +87,13 @@ def http_upload(lst_gen, port, log=None, test_webserver=False):
         return 0
 
     data = json.dumps({ "docs": docs })
-    r = urllib2.Request(url, data, {'Content-Type': 'application/json'})
+    r = urllib.request.Request(url, data.encode('utf-8'), {'Content-Type': 'application/json'})
 
     f = None
     try:
-        f = urllib2.urlopen(r)
+        f = urllib.request.urlopen(r)
         resp = f.read()
-    except urllib2.HTTPError:
+    except urllib.error.HTTPError:
         if log: log.warning("Couldn't upload files to a web instance: %s", url, exc_info=True)
         raise
     finally:

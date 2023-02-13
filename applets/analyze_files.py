@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -13,7 +13,7 @@ import json
 from collections import OrderedDict, namedtuple
 
 import fff_dqmtools
-import fff_filemonitor
+import applets.fff_filemonitor as fff_filemonitor
 import fff_cluster
 
 log = logging.getLogger(__name__)
@@ -75,9 +75,9 @@ def analyze_run_entry(e):
             try:
                 with open(f, "r") as fd:
                     jsn = json.load(fd).get("data", [-1]*5)
-                    evt_processed = long(jsn[0])
-                    evt_accepted = long(jsn[1])
-                    fsize = long(jsn[4])
+                    evt_processed = int(jsn[0])
+                    evt_accepted = int(jsn[1])
+                    fsize = int(jsn[4])
             except:
                 log.warning("Crash while reading %s.", f, exc_info=True)
 
@@ -162,7 +162,7 @@ class Analyzer(object):
 
             time.sleep(105)
 
-@fff_cluster.host_wrapper(allow = ["bu-c2f13-31-01", "bu-c2f11-09-01", "bu-c2f11-13-01"])
+@fff_cluster.host_wrapper(allow = ["dqmrubu-c2a06-05-01", "dqmrubu-c2a06-01-01", "dqmrubu-c2a06-03-01"])
 @fff_dqmtools.fork_wrapper(__name__, uid="dqmpro", gid="dqmpro")
 @fff_dqmtools.lock_wrapper
 def __run__(opts, logger, **kwargs):

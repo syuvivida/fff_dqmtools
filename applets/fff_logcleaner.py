@@ -90,11 +90,11 @@ if __name__ == "__main__":
             exit("You need root permissions to run this.")
 
     if len(sys.argv) == 2:
-        newsize = long(sys.argv[1])
+        newsize = int(sys.argv[1])
 
-        print "Set MAX_SIZE (%.03f) to %.03f megabytes." % (float(MAX_SIZE) / 1024 / 1024, newsize, )
+        print ("Set MAX_SIZE (%.03f) to %.03f megabytes." % (float(MAX_SIZE) / 1024 / 1024, newsize, ))
         MAX_SIZE = newsize * 1024 * 1024
 
     running_set = collect_open()
-    print "Running with max_size=%.03f keep_size=%.03f" % (float(MAX_SIZE) / 1024 / 1024, float(KEEP_SIZE) / 1024 / 1024, )
+    print( "Running with max_size=%.03f keep_size=%.03f" % (float(MAX_SIZE) / 1024 / 1024, float(KEEP_SIZE) / 1024 / 1024, ) )
     do_the_log_cleanup(running_set = running_set)

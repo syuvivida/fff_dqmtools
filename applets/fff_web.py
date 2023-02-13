@@ -1,15 +1,14 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 import json
 import re
 import sqlite3
-import os, sys, time
+import os, time
 import socket
 import logging
-import StringIO
 
 import fff_dqmtools
 import fff_cluster
-import fff_filemonitor
+import applets.fff_filemonitor as fff_filemonitor
 
 # fff_dqmtools fixed the imports for us
 import bottle
@@ -126,7 +125,7 @@ class Database(object):
             if from_rev is None:
                 c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Headers ORDER BY rev ASC")
             else:
-                from_rev = long(from_rev)
+                from_rev = int(from_rev)
                 c.execute("SELECT id, rev, timestamp, type, hostname, tag, run FROM Headers WHERE rev > ? ORDER BY rev ASC", (from_rev, ))
 
             headers = list(self.prepare_headers(c))
@@ -162,7 +161,7 @@ class Database(object):
                     rev = get_last_rev()
 
                 # get the document
-                if isinstance(body, basestring):
+                if isinstance(body, str):
                     doc = json.loads(body)
                 else:
                     doc = body
@@ -172,7 +171,7 @@ class Database(object):
 
                 # create the header and update the body
                 header = self.make_header(doc, rev=rev, write_back=True)
-                body = json.dumps(doc).encode("zlib")
+                body = zlib.compress( json.dumps(doc).encode("utf-8") )
 
                 db.execute("INSERT OR REPLACE INTO Headers (id, rev, timestamp, type, hostname, tag, run) VALUES (?, ?, ?, ?, ?, ?, ?)", (
                     header.get("_id"),
@@ -248,7 +247,7 @@ class SyncSocket(WebSocket):
             # if know_rev is not zero, we have to send at least a single header
             # to let the web interface to know it is synchronized
             if known_rev is not None:
-                known_rev = long(known_rev) - 1
+                known_rev = int(known_rev) - 1
 
 
             # send the current state
@@ -351,9 +350,8 @@ class SyncSocket(WebSocket):
         c = Proxy(peer_address)
         c.opened()
         for msg in input_messages:
-            log.info("Proxy mode insert msg: %s", msg);
-            c.received_message(ProxyMessage(msg))
-
+          log.info("Proxy mode insert msg: %s", msg);
+          c.received_message(ProxyMessage(msg))
         c.closed(code=1006, reason="Proxy mode end.", output_log=False)
 
         return output_messages
@@ -375,8 +373,8 @@ class WebServer(bottle.Bottle):
         static_path = os.path.join(static_path, "../web.static/")
 
         # from wsgiproxy.app import WSGIProxyApp
-        # proxy_app = WSGIProxyApp("https://fu-c2f11-15-02.cms:9215/sync_proxy")
-        # root.mount(proxy_app,"/dqm/dqm-square-origin/redirect/fu-c2f11-15-02.cms:9215/sync")
+        # proxy_app = WSGIProxyApp("https://dqmrubu-c2a06-03-01.cms:9215/sync_proxy")
+        # root.mount(proxy_app,"/dqm/dqm-square-origin/redirect/dqmrubu-c2a06-03-01.cms:9215/sync")
 
         # the decorator to enable cross domain communication
         # for http-proxy stuff
@@ -407,10 +405,10 @@ class WebServer(bottle.Bottle):
             log.info("check_auth(): host=%s", host)
             log.debug( bottle.request.url )
             log.debug( str(bottle.request.auth) )
-      	    log.debug( str(bottle.request.remote_route) )
-      	    log.debug( str(bottle.request.remote_addr) )
-      	    log.debug( str(bottle.request.json) )
-      	    log.debug( str(bottle.request.path ) )
+            log.debug( str(bottle.request.remote_route) )
+            log.debug( str(bottle.request.remote_addr) )
+            log.debug( str(bottle.request.json) )
+            log.debug( str(bottle.request.path ) )
             log.debug( str(bottle.request.cookies.items() ) )
 
             if "cmsweb" in bottle.request.url : 
@@ -526,7 +524,7 @@ class WebServer(bottle.Bottle):
             if pid != int(data["pid"]):
                 raise bottle.HTTPResponse("Process and pid not found.", status=404)
 
-            if b.has_key("exit_code"):
+            if "exit_code" in b:
                 raise bottle.HTTPResponse("Process already died.", status=404)
 
             signal = int(data["signal"])
@@ -735,12 +733,12 @@ class WebServer(bottle.Bottle):
               return json.dumps( answer )
 
             if what == "get_simulator_config" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               answer = fff_cluster.get_simulator_config( self.opts, fff_cluster.get_host(), host )
               return json.dumps( answer )
 
             if what == "get_simulator_runs" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               answer = fff_cluster.get_simulator_runs( self.opts, fff_cluster.get_host(), host )
               return json.dumps( answer )
 
@@ -773,7 +771,7 @@ class WebServer(bottle.Bottle):
               return json.dumps( [answer] )
 
             if what == "start_playback_run" :
-              host = bottle.request.query.get('host', default="bu-c2f11-13-01")
+              host = bottle.request.query.get('host', default="dqmrubu-c2a06-03-01")
               if( fff_cluster.get_host() != host ) :
                 url = 'http://' + host + ':' + str(self.opts["web.port"])  + '/cr/exe?' + bottle.request.urlparts.query
                 r = requests.get(url, data=bottle.request.body, headers = bottle.request.headers, timeout=60)
