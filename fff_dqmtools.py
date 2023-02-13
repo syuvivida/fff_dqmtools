@@ -10,9 +10,10 @@ def prepare_imports():
     sys.path.append(os.path.join(thp, "./"))
     sys.path.append(os.path.join(thp, "./lib"))
 
-    sys.path.insert(0, os.path.join(thp, "./lib/gevent-1.0.1-py2.6-linux-x86_64.egg"))
-    sys.path.insert(0, os.path.join(thp, "./lib/greenlet-0.4.5-py2.6-linux-x86_64.egg"))
-    sys.path.insert(0, os.path.join(thp, "./lib/ws4py-0.3.4-py2.6.egg"))
+    #sys.path.insert(0, os.path.join(thp, "./lib/gevent-1.0.1-py2.6-linux-x86_64.egg"))
+    #sys.path.insert(0, os.path.join(thp, "./lib/greenlet-0.4.5-py2.6-linux-x86_64.egg"))
+    #sys.path.insert(0, os.path.join(thp, "./lib/ws4py-0.3.4-py2.6.egg"))
+    sys.path.insert(0, os.path.join(thp, "./lib/ws4py"))
 
     # bytecode only creates problems with distribution
     # and we don't benefit much from the performance gain anyway
