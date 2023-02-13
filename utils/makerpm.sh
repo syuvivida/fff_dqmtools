@@ -11,7 +11,7 @@ cd $BUILDDIR
 
 cat > fff-dqmtools.spec <<EOF
 Name: fff-dqmtools
-Version: 1.9.1
+Version: 1.9.3
 Release: 1
 Summary: DQM tools for FFF.
 License: gpl
@@ -35,6 +35,7 @@ DQM tools for FFF and new DQM machines.
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/inotify
+mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/ws4py
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/applets
 
 mkdir -p \$RPM_BUILD_ROOT/opt/fff_dqmtools/misc
@@ -54,6 +55,7 @@ install -m 644 $SCRIPTDIR/applets/*.py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/appl
 cp -r $SCRIPTDIR/misc -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 cp -r $SCRIPTDIR/utils -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
 cp -r $SCRIPTDIR/web.static -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/
+cp -r $SCRIPTDIR/lib/ws4py -t \$RPM_BUILD_ROOT/opt/fff_dqmtools/lib/
 
 install -m 755 $SCRIPTDIR/misc/fff_dqmtools -t \$RPM_BUILD_ROOT/etc/init.d/
 install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logrotate.d/fff_dqmtools
@@ -65,6 +67,7 @@ install -m 644 $SCRIPTDIR/misc/fff_dqmtools.logrotate \$RPM_BUILD_ROOT/etc/logro
 /opt/fff_dqmtools/lib/*.egg
 /opt/fff_dqmtools/lib/inotify/*.py
 /opt/fff_dqmtools/applets/*.py
+/opt/fff_dqmtools/lib/ws4py
 
 /opt/fff_dqmtools/misc
 /opt/fff_dqmtools/utils
